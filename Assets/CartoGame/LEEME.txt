@@ -38,6 +38,9 @@ DÓNDE AJUSTAR COSAS
   o, ya en la escena, en el objeto "_CartoGame" > Carto Weapon Library.
 - Si un arma se ve girada en la mano: en "_CartoGame" > Carto Weapon Library, cambia
   "Grip Euler" y "Grip Offset" de esa arma (en Play se ve el resultado al reequiparla con Q / R).
+- Ropa del cartógrafo: selecciona "Cartografo" en la escena > Carto Player > Outfit Pieces.
+  Piezas disponibles: Starter_Chest, Starter_Pants, Starter_Boots, PlateSet1_Chest,
+  PlateSet1_Pants, PlateSet1_Boots, PlateSet1_Gloves, PlateSet1_Shoulders, PlateSet1_Helmet.
 - Vida, daño, oro y XP de cada enemigo: selecciona el enemigo en la escena
   (Carto Health y Carto Enemy), o cambia los valores en Editor/CartoGameBuilder.cs.
 - Posición de enemigos, casas y decoración: Editor/CartoGameBuilder.cs

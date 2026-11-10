@@ -74,6 +74,22 @@ public static class CartoMount
         return go;
     }
 
+    /// <summary>Activa las piezas de ropa (objetos desactivados dentro del modelo) por nombre.</summary>
+    public static void ApplyOutfit(Transform root, string[] pieces)
+    {
+        if (root == null || pieces == null) return;
+        Transform[] all = root.GetComponentsInChildren<Transform>(true);
+        for (int p = 0; p < pieces.Length; p++)
+        {
+            if (string.IsNullOrEmpty(pieces[p])) continue;
+            for (int i = 0; i < all.Length; i++)
+            {
+                if (string.Equals(all[i].name, pieces[p], System.StringComparison.OrdinalIgnoreCase))
+                    all[i].gameObject.SetActive(true);
+            }
+        }
+    }
+
     public static Transform FindContains(Transform root, string lowerName)
     {
         if (root == null) return null;

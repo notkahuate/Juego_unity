@@ -469,7 +469,8 @@ public static class CartoGameBuilder
         h.maxHealth = 100f;
         h.current = 100f;
         h.displayName = "Cartografo";
-        root.AddComponent<CartoPlayer>();
+        CartoPlayer player = root.AddComponent<CartoPlayer>();
+        CartoMount.ApplyOutfit(root.transform, player.outfitPieces);
     }
 
     static CartoEnemy SpawnEnemy(Transform parent, string prefabName, string hint, string display, Vector3 pos,

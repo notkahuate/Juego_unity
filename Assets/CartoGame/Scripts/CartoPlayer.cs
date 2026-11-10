@@ -15,6 +15,12 @@ public class CartoPlayer : MonoBehaviour
     public float gravity = -25f;
     public float turnSpeed = 14f;
 
+    // Piezas de ropa del modelo que se activan al empezar (nombres de los objetos dentro
+    // de "Armors"). Disponibles: Starter_Chest, Starter_Pants, Starter_Boots,
+    // PlateSet1_Chest, PlateSet1_Pants, PlateSet1_Boots, PlateSet1_Gloves,
+    // PlateSet1_Shoulders, PlateSet1_Helmet.
+    public string[] outfitPieces = { "Starter_Chest", "Starter_Pants", "Starter_Boots" };
+
     [HideInInspector] public CartoHealth health;
 
     CharacterController cc;
@@ -45,6 +51,7 @@ public class CartoPlayer : MonoBehaviour
         health = GetComponent<CartoHealth>();
         anim = GetComponentInChildren<Animator>();
         if (anim != null) anim.applyRootMotion = false;
+        CartoMount.ApplyOutfit(transform, outfitPieces);
 
         health.team = 0;
         health.maxHealth = CartoGameState.maxHealth;
