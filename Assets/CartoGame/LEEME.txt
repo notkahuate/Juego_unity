@@ -1,0 +1,46 @@
+EL CARTÓGRAFO DEL TIEMPO — demo jugable
+=======================================
+
+CÓMO INSTALAR
+1. Crea un proyecto de Unity con la plantilla 3D (Built-in Render Pipeline).
+2. Importa tus assets:  Assets > Import Package > Custom Package... > carto-game.unitypackage
+3. Importa este package:  Assets > Import Package > Custom Package... > CartoGame_Juego.unitypackage
+4. Aparecerá una ventana preguntando si quieres construir el juego: pulsa "Construir ahora".
+   (También está en el menú superior:  CartoGame > Construir juego (crear escenas))
+5. Se abre la escena del Nexo. Pulsa Play.
+
+Las escenas quedan en  Assets/CartoGame/Generated/Scenes  y se añaden solas a Build Settings.
+Si cambias algo en los scripts del constructor o quieres regenerar los niveles, vuelve a ejecutar el menú.
+
+CONTROLES
+  WASD            moverse
+  Ratón           cámara (rueda = zoom)
+  Shift           correr
+  Espacio         esquivar (eres invulnerable mientras ruedas)
+  Clic izquierdo  ataque cuerpo a cuerpo
+  Clic derecho    ataque a distancia (cuando tengas pistola o kunai)
+  Q / R           cambiar arma cuerpo a cuerpo / a distancia
+  E               interactuar (portales, altar de mejoras, cristal)
+  1, 2, 3         comprar mejoras en el altar
+  Esc             pausa        Enter  confirmar        N  nueva partida (en pausa)
+
+CÓMO SE JUEGA
+- Empiezas en el Nexo del Tiempo con tu catalejo como arma.
+- Cada portal lleva a una era: Era Pirata y Era Samurái.
+- En cada era hay armas propias (sable y pistola de chispa; katana y kunai),
+  enemigos que sueltan oro y dan experiencia, y un jefe que guarda el cristal.
+- Al derrotar al jefe se rompe el sello: toma el cristal con E y vuelves al Nexo.
+- En el Altar de Mejoras gastas el oro en subir de nivel el arma equipada y tu vida máxima.
+- Con los 2 cristales el tiempo queda restaurado.
+
+DÓNDE AJUSTAR COSAS
+- Daño, alcance y velocidad de las armas:  Scripts/CartoWeaponLibrary.cs  (CreateDefaults)
+  o, ya en la escena, en el objeto "_CartoGame" > Carto Weapon Library.
+- Si un arma se ve girada en la mano: en "_CartoGame" > Carto Weapon Library, cambia
+  "Grip Euler" y "Grip Offset" de esa arma (en Play se ve el resultado al reequiparla con Q / R).
+- Vida, daño, oro y XP de cada enemigo: selecciona el enemigo en la escena
+  (Carto Health y Carto Enemy), o cambia los valores en Editor/CartoGameBuilder.cs.
+- Posición de enemigos, casas y decoración: Editor/CartoGameBuilder.cs
+  (BuildHub, BuildPirate, BuildSamurai) o directamente moviéndolos en la escena.
+- Para añadir otra era: copia BuildSamurai, añade armas en CartoWeaponLibrary y
+  amplía el arreglo "crystals" de CartoGameState.
