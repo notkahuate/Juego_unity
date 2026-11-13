@@ -47,6 +47,18 @@ public class CartoWeaponLibrary : MonoBehaviour
         return null;
     }
 
+    /// <summary>Nombre visible de una era (CartoWeaponDef.era es un identificador sin tildes).</summary>
+    public static string EraTitle(string era)
+    {
+        switch (era)
+        {
+            case "Cartografo": return "Cartógrafo";
+            case "Pirata": return "Era Pirata";
+            case "Samurai": return "Era Samurái";
+        }
+        return string.IsNullOrEmpty(era) ? "Otras armas" : era;
+    }
+
     /// <summary>Definiciones por defecto. Cambia aqui dano, alcance, etc.</summary>
     public static List<CartoWeaponDef> CreateDefaults()
     {

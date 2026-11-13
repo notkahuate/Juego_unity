@@ -339,6 +339,71 @@ public class CartoHUD : MonoBehaviour
         Label(new Rect(box.x, box.yMax - 48 * s, box.width, 34 * s), "[E] o [Esc]  Cerrar", 20, Color.white, TextAnchor.MiddleCenter);
     }
 
+    /// <summary>
+    /// Coleccion de armas del menu de pausa: todas las del catalogo (CartoWeaponLibrary) agrupadas
+    /// por era, marcando cuales se han obtenido (CartoGameState.owned) y cuales siguen bloqueadas.
+    /// </summary>
+    void DrawCollection(Rect box)
+    {
+        float s = scale;
+        Color cyan = new Color(0.6f, 0.95f, 1f);
+        Color gold = new Color(1f, 0.85f, 0.3f);
+        Color locked = new Color(1f, 1f, 1f, 0.42f);
+        DrawRect(box, new Color(1f, 1f, 1f, 0.07f));
+        DrawRect(new Rect(box.x, box.y, box.width, 4 * s), cyan);
+        Label(new Rect(box.x, box.y + 10 * s, box.width, 36 * s), "COLECCIÓN DE ARMAS", 26, cyan, TextAnchor.MiddleCenter);
+
+        CartoWeaponLibrary lib = CartoWeaponLibrary.Instance;
+        if (lib == null) return;
+        List<string> eras = new List<string>();
+        for (int i = 0; i < lib.weapons.Count; i++)
+            if (!eras.Contains(lib.weapons[i].era)) eras.Add(lib.weapons[i].era);
+
+        float x = box.x + 30 * s, w = box.width - 60 * s;
+        float y = box.y + 54 * s;
+        float row = 32 * s;
+        for (int e = 0; e < eras.Count; e++)
+        {
+            int total = 0, got = 0;
+            for (int i = 0; i < lib.weapons.Count; i++)
+            {
+                if (lib.weapons[i].era != eras[e]) continue;
+                total++;
+                if (CartoGameState.Owns(lib.weapons[i].id)) got++;
+            }
+            Label(new Rect(x, y, w, row), CartoWeaponLibrary.EraTitle(eras[e]), 22, gold, TextAnchor.MiddleLeft);
+            Label(new Rect(x, y, w, row), got + " / " + total, 20, gold, TextAnchor.MiddleRight);
+            DrawRect(new Rect(x, y + row, w, Mathf.Max(1f, 2f * s)), new Color(1f, 1f, 1f, 0.25f));
+            y += row + 6 * s;
+
+            for (int i = 0; i < lib.weapons.Count; i++)
+            {
+                CartoWeaponDef d = lib.weapons[i];
+                if (d.era != eras[e]) continue;
+                bool owned = CartoGameState.Owns(d.id);
+                bool equipped = owned && (d.id == CartoGameState.meleeId || d.id == CartoGameState.rangedId);
+
+                // Marca: cuadro lleno = obtenida, cuadro hueco = bloqueada.
+                Rect mark = new Rect(x + 6 * s, y + 9 * s, 14 * s, 14 * s);
+                DrawRect(mark, owned ? new Color(0.45f, 0.9f, 0.5f) : locked);
+                if (!owned)
+                {
+                    float b = Mathf.Max(1f, 2f * s);
+                    DrawRect(new Rect(mark.x + b, mark.y + b, mark.width - 2f * b, mark.height - 2f * b), new Color(0.05f, 0.03f, 0.12f));
+                }
+
+                Label(new Rect(x + 34 * s, y, w * 0.42f, row), d.displayName, 22, owned ? Color.white : locked, TextAnchor.MiddleLeft);
+                Label(new Rect(x + w * 0.44f, y, w * 0.28f, row), d.ranged ? "a distancia" : "cuerpo a cuerpo", 18,
+                    owned ? new Color(1f, 1f, 1f, 0.75f) : locked, TextAnchor.MiddleLeft);
+                string status = !owned ? "Bloqueada"
+                    : "Nv." + (CartoGameState.WeaponLevel(d.id) + 1) + (equipped ? "  ·  equipada" : "");
+                Label(new Rect(x, y, w, row), status, 20, !owned ? locked : (equipped ? gold : Color.white), TextAnchor.MiddleRight);
+                y += row;
+            }
+            y += 8 * s;
+        }
+    }
+
     void DrawOverlay(float W, float H)
     {
         float s = scale;
@@ -375,6 +440,7 @@ public class CartoHUD : MonoBehaviour
                     "Nivel " + CartoGameState.level + "     Oro " + CartoGameState.gold +
                     "     Cristales " + CartoGameState.CrystalCount + " / 2     Enemigos derrotados " + CartoGameState.kills,
                     25, Color.white, TextAnchor.UpperCenter);
+                DrawCollection(new Rect(W * 0.5f - 470 * s, H * 0.46f, 940 * s, 372 * s));
                 Label(foot, "ESC o ENTER  continuar          N  nueva partida", 28, gold, TextAnchor.MiddleCenter);
                 break;
 
