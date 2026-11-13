@@ -41,6 +41,7 @@ public static class CartoGameBuilder
         missing.Clear();
         mats.Clear();
         rng = new System.Random(7);
+        bool pipelineChanged = EnsureBuiltInPipeline();
         EnsureFolder(Gen);
         EnsureFolder(MatDir);
         EnsureFolder(SceneDir);
@@ -75,6 +76,11 @@ public static class CartoGameBuilder
         }
 
         string msg = "Juego construido.\n\nSe abrio la escena del Nexo (Carto_Hub). Pulsa Play para jugar.";
+        if (pipelineChanged)
+        {
+            msg += "\n\nEl proyecto tenia un Render Pipeline Asset (URP/HDRP) activo y se cambio a Built-in " +
+                   "(Graphics y Quality), porque los materiales del juego usan el shader Standard.";
+        }
         if (missing.Count > 0)
         {
             msg += "\n\nAVISO: no se encontraron estos assets (se usaron figuras basicas en su lugar):\n- " +
@@ -93,6 +99,36 @@ public static class CartoGameBuilder
             return;
         }
         if (EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo()) EditorSceneManager.OpenScene(HubPath);
+    }
+
+    /// <summary>
+    /// El juego esta hecho para el Built-in Render Pipeline (shader Standard). Con un Render Pipeline
+    /// Asset activo (URP/HDRP) todo se ve magenta, asi que se quita de Graphics y de cada nivel de Quality.
+    /// Devuelve true si tuvo que cambiar algo.
+    /// </summary>
+    static bool EnsureBuiltInPipeline()
+    {
+        bool changed = false;
+        if (GraphicsSettings.defaultRenderPipeline != null)
+        {
+            GraphicsSettings.defaultRenderPipeline = null;
+            changed = true;
+        }
+        int current = QualitySettings.GetQualityLevel();
+        int levels = QualitySettings.names.Length;
+        for (int i = 0; i < levels; i++)
+        {
+            if (QualitySettings.GetRenderPipelineAssetAt(i) == null) continue;
+            QualitySettings.SetQualityLevel(i, false);
+            QualitySettings.renderPipeline = null;
+            changed = true;
+        }
+        if (changed)
+        {
+            QualitySettings.SetQualityLevel(current, false);
+            Debug.Log("CartoGame: se desactivo el Render Pipeline Asset; el proyecto usa ahora el Built-in Render Pipeline.");
+        }
+        return changed;
     }
 
     // =====================================================================

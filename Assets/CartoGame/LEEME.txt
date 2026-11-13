@@ -9,6 +9,9 @@ CÓMO INSTALAR
    (También está en el menú superior:  CartoGame > Construir juego (crear escenas))
 5. Se abre la escena del Nexo. Pulsa Play.
 
+Si el proyecto se creó con URP/HDRP (todo se ve magenta), el constructor lo cambia solo a
+Built-in al ejecutarse: quita el Render Pipeline Asset de Graphics y de cada nivel de Quality.
+
 Las escenas quedan en  Assets/CartoGame/Generated/Scenes  y se añaden solas a Build Settings.
 Si cambias algo en los scripts del constructor o quieres regenerar los niveles, vuelve a ejecutar el menú.
 
