@@ -39,6 +39,8 @@ public class CartoEnemy : MonoBehaviour
     float vy;
     float animSpeed;
     bool aggro;
+    Vector3 homePos;
+    Quaternion homeRot;
 
     public bool IsDead { get { return state == State.Dead; } }
     public bool Aggro { get { return aggro; } }
@@ -52,6 +54,8 @@ public class CartoEnemy : MonoBehaviour
         anim = GetComponentInChildren<Animator>();
         if (anim != null) anim.applyRootMotion = false;
         health.team = 1;
+        homePos = transform.position;
+        homeRot = transform.rotation;
         health.Damaged += OnDamaged;
         health.Died += OnDied;
     }
@@ -175,6 +179,27 @@ public class CartoEnemy : MonoBehaviour
             if (o == null || o == this || o.aggro || o.health.isBoss) continue;
             if ((o.transform.position - transform.position).sqrMagnitude < 9f * 9f) o.Alert();
         }
+    }
+
+    /// <summary>
+    /// Al reaparecer el cartografo en un punto de control: el enemigo (si sigue vivo) olvida la pelea,
+    /// vuelve a su posicion inicial y recupera toda la vida.
+    /// </summary>
+    public void ResetToHome()
+    {
+        if (state == State.Dead) return;
+        aggro = false;
+        state = State.Idle;
+        staggerUntil = 0f;
+        vy = 0f;
+        animSpeed = 0f;
+        nextAttack = Time.time + Random.Range(0.2f, 0.8f);
+        health.current = health.maxHealth;
+        cc.enabled = false;
+        transform.position = homePos;
+        transform.rotation = homeRot;
+        cc.enabled = true;
+        Play("Locomotion");
     }
 
     void BeginAttack()

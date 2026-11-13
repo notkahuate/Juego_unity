@@ -150,7 +150,9 @@ public class CartoHUD : MonoBehaviour
                 if (CartoInput.ConfirmDown)
                 {
                     ShowOverlay(Overlay.None);
-                    CartoGame.RespawnAtHub();
+                    CartoGame game = CartoGame.Instance;
+                    if (game != null && game.HasCheckpoint) game.RespawnAtCheckpoint();
+                    else CartoGame.RespawnAtHub();
                 }
                 break;
 
@@ -527,12 +529,19 @@ public class CartoHUD : MonoBehaviour
             }
 
             case Overlay.Death:
+            {
+                bool atCheckpoint = CartoGame.Instance != null && CartoGame.Instance.HasCheckpoint;
                 Label(new Rect(0, H * 0.2f, W, 90 * s), "HAS CAÍDO", 70, new Color(1f, 0.3f, 0.3f), TextAnchor.MiddleCenter, false);
                 Label(new Rect(body.x, H * 0.38f, body.width, body.height),
-                    "El tiempo te devuelve al Nexo.\nPierdes una cuarta parte de tu oro, pero conservas armas, nivel y cristales.",
+                    (atCheckpoint
+                        ? "El tiempo te devuelve al punto de control. Los enemigos que quedaban en pie se recuperan.\n"
+                        : "El tiempo te devuelve al Nexo.\n") +
+                    "Pierdes una cuarta parte de tu oro, pero conservas armas, nivel y cristales.",
                     29, Color.white, TextAnchor.UpperCenter);
-                Label(foot, "Pulsa ENTER para volver al Nexo", 32, Gold, TextAnchor.MiddleCenter, false);
+                Label(foot, atCheckpoint ? "Pulsa ENTER para reaparecer en el punto de control" : "Pulsa ENTER para volver al Nexo",
+                    32, Gold, TextAnchor.MiddleCenter, false);
                 break;
+            }
 
             case Overlay.Victory:
             {

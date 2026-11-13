@@ -39,6 +39,7 @@ public class CartoPlayer : MonoBehaviour
     float showRangedUntil;
     float animSpeed;
     bool dead;
+    float safeUntil;      // invulnerable un momento al reaparecer en un punto de control
     Vector3 spawnPos;
 
     public bool IsDead { get { return dead; } }
@@ -116,7 +117,7 @@ public class CartoPlayer : MonoBehaviour
         float now = Time.time;
         bool rolling = now < rollUntil;
         bool busy = now < busyUntil;
-        health.invulnerable = now < rollUntil - 0.1f;
+        health.invulnerable = now < rollUntil - 0.1f || now < safeUntil;
 
         // --- Direccion de movimiento relativa a la camara ---
         Vector2 input = blocked ? Vector2.zero : CartoInput.Move;
@@ -214,6 +215,25 @@ public class CartoPlayer : MonoBehaviour
         transform.position = pos;
         cc.enabled = true;
         vy = 0f;
+    }
+
+    /// <summary>Devuelve al cartografo a la vida, con la vida completa, en un punto de control.</summary>
+    public void Revive(Vector3 pos, float yaw)
+    {
+        dead = false;
+        health.maxHealth = CartoGameState.maxHealth;
+        health.current = CartoGameState.maxHealth;
+        CartoGameState.health = health.current;
+        busyUntil = 0f;
+        rollUntil = 0f;
+        hitAt = -1f;
+        fireAt = -1f;
+        animSpeed = 0f;
+        safeUntil = Time.time + 2f;
+        Teleport(pos);
+        transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+        spawnPos = pos;
+        Play("Locomotion");
     }
 
     Vector3 CameraForward()

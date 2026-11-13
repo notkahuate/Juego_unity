@@ -12,6 +12,11 @@ public class CartoGame : MonoBehaviour
     public string zoneTitle = "Nexo del Tiempo";
     public string objective = "";
 
+    // Ultimo punto de control activado en esta escena (se pierde al cambiar de escena).
+    [System.NonSerialized] public CartoCheckpoint checkpoint;
+
+    public bool HasCheckpoint { get { return checkpoint != null; } }
+
     void Awake()
     {
         Instance = this;
@@ -62,6 +67,33 @@ public class CartoGame : MonoBehaviour
     public void OnPlayerDied()
     {
         CartoHUD.ShowOverlay(CartoHUD.Overlay.Death);
+    }
+
+    /// <summary>
+    /// Reaparece en el punto de control sin recargar la escena: los enemigos derrotados siguen
+    /// derrotados y los que quedaban vivos vuelven a su sitio con la vida completa.
+    /// </summary>
+    public void RespawnAtCheckpoint()
+    {
+        CartoPlayer player = CartoPlayer.Instance;
+        if (checkpoint == null || player == null)
+        {
+            RespawnAtHub();
+            return;
+        }
+        CartoGameState.gold = Mathf.FloorToInt(CartoGameState.gold * 0.75f);
+        CartoGameState.health = CartoGameState.maxHealth;
+        Time.timeScale = 1f;
+
+        CartoEnemy[] enemies = CartoEnemy.All.ToArray();
+        for (int i = 0; i < enemies.Length; i++)
+            if (enemies[i] != null) enemies[i].ResetToHome();
+
+        player.Revive(checkpoint.RespawnPosition, checkpoint.yaw);
+        Camera cam = Camera.main;
+        CartoCamera orbit = cam != null ? cam.GetComponent<CartoCamera>() : null;
+        if (orbit != null) orbit.yaw = checkpoint.yaw;
+        CartoHUD.Toast("Reapareces en el punto de control", 3f);
     }
 
     public static void RespawnAtHub()

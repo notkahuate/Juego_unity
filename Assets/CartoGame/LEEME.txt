@@ -33,6 +33,9 @@ CÓMO SE JUEGA
 - Cada portal lleva a una era: Era Pirata y Era Samurái.
 - En cada era hay armas propias (sable y pistola de chispa; katana y kunai),
   enemigos que sueltan oro y dan experiencia, y un jefe que guarda el cristal.
+- Antes de cada jefe hay un punto de control: dos postes que se encienden al cruzar entre ellos.
+  Si caes después de activarlo reapareces ahí (pierdes 1/4 del oro) en vez de volver al Nexo;
+  los enemigos derrotados siguen derrotados y los que quedaban en pie se recuperan.
 - Al derrotar al jefe se rompe el sello: toma el cristal con E y vuelves al Nexo.
 - En el Altar de Mejoras gastas el oro en subir de nivel el arma equipada y tu vida máxima.
 - Con los 2 cristales el tiempo queda restaurado.

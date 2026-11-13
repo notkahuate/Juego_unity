@@ -663,6 +663,41 @@ public static class CartoGameBuilder
         p.label = label;
     }
 
+    /// <summary>
+    /// Punto de control: dos postes a los lados del camino que se encienden al cruzar entre ellos.
+    /// El cartografo reaparece en el centro (pos) mirando hacia +Z, donde espera el jefe.
+    /// </summary>
+    static void Checkpoint(Transform parent, Vector3 pos)
+    {
+        GameObject root = new GameObject("PuntoDeControl");
+        root.transform.SetParent(parent, false);
+        root.transform.position = pos;
+        Material stone = Mat("Piedra", new Color(0.42f, 0.4f, 0.45f));
+        Material off = Mat("ControlApagado", new Color(0.2f, 0.22f, 0.24f));
+        Color glow = new Color(0.4f, 1f, 0.65f);
+        Material on = Mat("BrilloControl", glow, 1.8f);
+
+        GameObject offGroup = new GameObject("Apagado");
+        offGroup.transform.SetParent(root.transform, false);
+        GameObject onGroup = new GameObject("Encendido");
+        onGroup.transform.SetParent(root.transform, false);
+        for (int side = -1; side <= 1; side += 2)
+        {
+            float x = side * 4.2f;
+            Prim(PrimitiveType.Cylinder, "Base", root.transform, new Vector3(x, 0.12f, 0f), new Vector3(1.3f, 0.12f, 1.3f), stone, false);
+            Prim(PrimitiveType.Cube, "Poste", root.transform, new Vector3(x, 1.25f, 0f), new Vector3(0.32f, 2.1f, 0.32f), stone, false);
+            Prim(PrimitiveType.Cube, "Faro", offGroup.transform, new Vector3(x, 2.6f, 0f), new Vector3(0.6f, 0.6f, 0.6f), off, false, 45f);
+            GameObject lit = Prim(PrimitiveType.Cube, "Faro", onGroup.transform, new Vector3(x, 2.6f, 0f), new Vector3(0.6f, 0.6f, 0.6f), on, false, 45f);
+            lit.AddComponent<CartoSpin>().bobHeight = 0.08f;
+            PointLight(onGroup.transform, new Vector3(x, 2.7f, 0f), glow, 9f, 2.4f);
+        }
+        onGroup.SetActive(false);
+
+        CartoCheckpoint cp = root.AddComponent<CartoCheckpoint>();
+        cp.activeVisual = onGroup;
+        cp.inactiveVisual = offGroup;
+    }
+
     static void Torii(Transform parent, Vector3 pos, float halfWidth, Material red, Material dark)
     {
         GameObject root = new GameObject("Torii");
@@ -962,6 +997,9 @@ public static class CartoGameBuilder
         CartoEnemy boss = SpawnEnemy(enemies, "Captain_Male", "LowPolyPirate", "Capitán Marea Negra", new Vector3(0f, 0.05f, 40f),
             1.15f, 340f, 22f, 4.1f, 70, 90, 120, "Culass1", "Pirate Weapons", false, false, true);
 
+        // Punto de control antes del jefe (entre el segundo y el tercer grupo de piratas)
+        Checkpoint(env, new Vector3(0f, 0f, 17f));
+
         CrystalGoal(env, 0, "Era Pirata", new Vector3(0f, 0f, 48f), boss.GetComponent<CartoHealth>(), "Crystal_46", new Color(0.3f, 0.9f, 1f));
         Portal(env, new Vector3(0f, 0f, -51f), 0f, wood, cyan, new Color(0.4f, 0.9f, 1f), CartoGameState.SceneHub, "Volver al Nexo");
 
@@ -1075,6 +1113,9 @@ public static class CartoGameBuilder
         SpawnEnemy(enemies, "Ninja_v2", sp, "Ninja", new Vector3(0f, 0.05f, 29f), 1f, 55f, 9f, 5f, 10, 16, 22, "Kunai", sw, false, true, false);
         CartoEnemy boss = SpawnEnemy(enemies, "Akudaikan_v2", sp, "Akudaikan, Señor de la Guerra", new Vector3(0f, 0.25f, 41f),
             1.3f, 520f, 28f, 4.2f, 110, 130, 200, "Kanabo", sw, true, false, true);
+
+        // Punto de control antes del jefe (entre el segundo torii y el ultimo)
+        Checkpoint(env, new Vector3(0f, 0f, 16f));
 
         CrystalGoal(env, 1, "Era Samurái", new Vector3(0f, 0.2f, 48f), boss.GetComponent<CartoHealth>(), "Crystal_50", new Color(1f, 0.4f, 0.8f));
         Portal(env, new Vector3(0f, 0f, -51f), 0f, red, cyan, new Color(0.4f, 0.9f, 1f), CartoGameState.SceneHub, "Volver al Nexo");
