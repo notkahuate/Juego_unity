@@ -31,3 +31,4 @@ Demo jugable en Unity (3D, Built-in Render Pipeline). Viaja desde el Nexo del Ti
 | E | Interactuar |
 | 1, 2, 3 | Comprar mejoras en el altar |
 | Esc | Pausa |
+| Enter | Confirmar / saltar cinemática |

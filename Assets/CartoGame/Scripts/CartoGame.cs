@@ -44,19 +44,43 @@ public class CartoGame : MonoBehaviour
             }
         }
 
+        // Cinematica de historia (la crea el constructor; si la escena no la tiene, se omite).
+        CartoCinematic cinematic = GetComponent<CartoCinematic>();
+        bool hasCinematic = cinematic != null && cinematic.HasShots;
+        int z = (int)zone;
+
         if (zone == Zone.Hub && !CartoGameState.introShown)
         {
-            CartoHUD.ShowOverlay(CartoHUD.Overlay.Intro);
+            // Inicio de la partida: historia y, al terminar o saltarla, la pantalla de controles.
+            if (hasCinematic) cinematic.Play(ShowIntroScreen);
+            else ShowIntroScreen();
         }
         else if (zone == Zone.Hub && CartoGameState.AllCrystals && !CartoGameState.victoryShown)
         {
             CartoGameState.victoryShown = true;
             CartoHUD.ShowOverlay(CartoHUD.Overlay.Victory);
         }
+        else if (zone != Zone.Hub && hasCinematic && z < CartoGameState.eraIntroShown.Length && !CartoGameState.eraIntroShown[z])
+        {
+            // Primera visita a esta era: presentacion breve.
+            CartoGameState.eraIntroShown[z] = true;
+            cinematic.Play(EndEraIntro);
+        }
         else
         {
             CartoHUD.Toast(zoneTitle, 3f);
         }
+    }
+
+    void ShowIntroScreen()
+    {
+        CartoHUD.ShowOverlay(CartoHUD.Overlay.Intro);
+    }
+
+    void EndEraIntro()
+    {
+        CartoHUD.ShowOverlay(CartoHUD.Overlay.None);
+        CartoHUD.Toast(zoneTitle, 3f);
     }
 
     void OnDestroy()

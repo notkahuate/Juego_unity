@@ -24,6 +24,7 @@ public class CartoCamera : MonoBehaviour
     {
         CartoPlayer player = CartoPlayer.Instance;
         if (player == null) return;
+        if (CartoCinematic.Active != null) return;   // durante una cinematica la camara la mueve CartoCinematic
 
         if (!CartoHUD.Blocking && Cursor.lockState == CursorLockMode.Locked)
         {

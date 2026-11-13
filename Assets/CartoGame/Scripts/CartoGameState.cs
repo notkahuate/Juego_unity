@@ -26,6 +26,7 @@ public static class CartoGameState
     public static string rangedId;
     public static int vitalityLevel;
     public static bool introShown;
+    public static bool[] eraIntroShown = new bool[3];   // cinematica de entrada vista, por CartoGame.Zone
     public static bool victoryShown;
     public static float playTime;
 
@@ -56,6 +57,7 @@ public static class CartoGameState
         rangedId = "";
         vitalityLevel = 0;
         introShown = false;
+        eraIntroShown = new bool[3];
         victoryShown = false;
         playTime = 0f;
     }

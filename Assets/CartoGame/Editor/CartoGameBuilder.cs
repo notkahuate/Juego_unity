@@ -698,6 +698,28 @@ public static class CartoGameBuilder
         cp.inactiveVisual = offGroup;
     }
 
+    static CartoShot Shot(Vector3 from, Vector3 to, Vector3 lookAt, float seconds, string text)
+    {
+        CartoShot s = new CartoShot();
+        s.from = from;
+        s.to = to;
+        s.lookAt = lookAt;
+        s.seconds = seconds;
+        s.text = text;
+        return s;
+    }
+
+    /// <summary>
+    /// Cinematica de historia de la escena: planos de camara con texto narrativo, guardados en
+    /// "_CartoGame". Hay que llamarlo despues de SetupCommon.
+    /// </summary>
+    static void AddCinematic(params CartoShot[] shots)
+    {
+        GameObject gm = GameObject.Find("_CartoGame");
+        if (gm == null) return;
+        gm.AddComponent<CartoCinematic>().shots = shots;
+    }
+
     static void Torii(Transform parent, Vector3 pos, float halfWidth, Material red, Material dark)
     {
         GameObject root = new GameObject("Torii");
@@ -882,6 +904,19 @@ public static class CartoGameBuilder
 
         SetupCommon(CartoGame.Zone.Hub, "Nexo del Tiempo", "Cruza un portal, recupera los cristales y mejora tus armas en el altar",
             new Vector3(0f, 0.1f, -13f), 0f, false, voidColor);
+
+        // Intro de historia: vista general, la grieta, los dos portales y el cartografo.
+        AddCinematic(
+            Shot(new Vector3(0f, 30f, -50f), new Vector3(0f, 22f, -40f), new Vector3(0f, 5f, 4f), 5f,
+                "El tiempo era un mapa perfecto: cada era en su lugar, cada camino trazado."),
+            Shot(new Vector3(-15f, 8f, -9f), new Vector3(-9f, 11f, -4f), new Vector3(0f, 17f, 8f), 5f,
+                "Hasta que una grieta lo desgarró y mezcló todas las épocas."),
+            Shot(new Vector3(-3f, 3.2f, -6f), new Vector3(-7f, 2.8f, -1.5f), new Vector3(-15f, 2.4f, 1f), 5f,
+                "Los cristales que sostenían el tiempo quedaron atrapados lejos de aquí: uno en la Era Pirata..."),
+            Shot(new Vector3(3f, 3.2f, -6f), new Vector3(7f, 2.8f, -1.5f), new Vector3(15f, 2.4f, 1f), 5f,
+                "...y otro en la Era Samurái, en manos de quienes ahora los reclaman."),
+            Shot(new Vector3(2.5f, 3.2f, -5f), new Vector3(1.2f, 2.2f, -9.5f), new Vector3(0f, 1.35f, -13f), 6f,
+                "Solo queda un Cartógrafo del Tiempo. Cruza los portales, recupera los cristales y devuelve cada era a su lugar."));
         SaveScene(scene, HubPath);
     }
 
@@ -1005,6 +1040,13 @@ public static class CartoGameBuilder
 
         SetupCommon(CartoGame.Zone.Pirate, "Era Pirata", "Derrota al Capitán Marea Negra y toma el cristal del tiempo",
             new Vector3(0f, 0.1f, -44f), 0f, true, sky);
+
+        // Presentacion de la era: el puerto desde arriba y el tramo final hacia el jefe.
+        AddCinematic(
+            Shot(new Vector3(0f, 13f, -50f), new Vector3(0f, 8f, -30f), new Vector3(0f, 1.5f, 8f), 5.5f,
+                "Era Pirata. El Capitán Marea Negra ha tomado el puerto y esconde un cristal del tiempo."),
+            Shot(new Vector3(6f, 4.6f, 22f), new Vector3(3f, 3.6f, 31f), new Vector3(0f, 2.2f, 42f), 5.5f,
+                "Ábrete paso entre su tripulación. En el pueblo encontrarás un sable y una pistola de chispa."));
         SaveScene(scene, PiratePath);
     }
 
@@ -1122,6 +1164,13 @@ public static class CartoGameBuilder
 
         SetupCommon(CartoGame.Zone.Samurai, "Era Samurái", "Derrota a Akudaikan y toma el cristal del tiempo",
             new Vector3(0f, 0.1f, -44f), 0f, false, dusk);
+
+        // Presentacion de la era: el camino de los torii desde arriba y el dojo del jefe.
+        AddCinematic(
+            Shot(new Vector3(0f, 12f, -54f), new Vector3(0f, 7.4f, -33f), new Vector3(0f, 3f, 2f), 5.5f,
+                "Era Samurái. Akudaikan, Señor de la Guerra, se ha apoderado del dojo y de otro cristal del tiempo."),
+            Shot(new Vector3(2.5f, 4f, 21.5f), new Vector3(1.5f, 3.6f, 27.5f), new Vector3(0f, 3f, 42f), 5.5f,
+                "Ashigaru, ninjas y samuráis guardan el camino de los torii. Busca la katana y los kunai."));
         SaveScene(scene, SamuraiPath);
     }
 }

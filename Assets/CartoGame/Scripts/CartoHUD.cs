@@ -7,7 +7,7 @@ using UnityEngine;
 /// </summary>
 public class CartoHUD : MonoBehaviour
 {
-    public enum Overlay { None, Intro, Pause, Death, Victory }
+    public enum Overlay { None, Intro, Pause, Death, Victory, Cinematic }
 
     struct Floater
     {
@@ -24,6 +24,7 @@ public class CartoHUD : MonoBehaviour
     static int promptFrame = -10;
     static float flashUntil;
     static bool cursorFree;   // Ctrl: raton libre y camara quieta, sin pausar
+    static float fadeStart = -10f;   // fundido desde negro al terminar una cinematica
     static readonly List<Floater> floaters = new List<Floater>();
 
     GUIStyle style;
@@ -43,6 +44,7 @@ public class CartoHUD : MonoBehaviour
         promptFrame = -10;
         flashUntil = 0f;
         cursorFree = false;
+        fadeStart = -10f;
         floaters.Clear();
     }
 
@@ -63,6 +65,11 @@ public class CartoHUD : MonoBehaviour
     public static void DamageFlash()
     {
         flashUntil = Time.unscaledTime + 0.35f;
+    }
+
+    public static void FadeFromBlack()
+    {
+        fadeStart = Time.unscaledTime;
     }
 
     public static void AddFloater(Vector3 worldPos, string text, Color color)
@@ -102,7 +109,7 @@ public class CartoHUD : MonoBehaviour
         floaters.Clear();
         CartoShop.IsOpen = false;
         cursorFree = false;
-        if (overlay == Overlay.Pause || overlay == Overlay.Death) overlay = Overlay.None;
+        if (overlay == Overlay.Pause || overlay == Overlay.Death || overlay == Overlay.Cinematic) overlay = Overlay.None;
     }
 
     void Update()
@@ -135,6 +142,11 @@ public class CartoHUD : MonoBehaviour
                     ShowOverlay(Overlay.None);
                     Toast("Nexo del Tiempo  —  Cruza un portal para viajar a una era", 5f);
                 }
+                break;
+
+            case Overlay.Cinematic:
+                if (CartoCinematic.Active == null) ShowOverlay(Overlay.None);
+                else if (CartoInput.ConfirmDown) CartoCinematic.Active.Skip();
                 break;
 
             case Overlay.Pause:
@@ -258,6 +270,12 @@ public class CartoHUD : MonoBehaviour
         float s = scale;
         Color white = Color.white;
 
+        if (overlay == Overlay.Cinematic)
+        {
+            DrawCinematic(W, H);
+            return;
+        }
+
         DrawWorld(W, H);
 
         // Destello rojo al recibir dano
@@ -340,6 +358,29 @@ public class CartoHUD : MonoBehaviour
 
         if (CartoShop.IsOpen && overlay == Overlay.None) DrawShop(W, H);
         if (overlay != Overlay.None) DrawOverlay(W, H);
+
+        // Fundido desde negro al terminar una cinematica
+        float fade = 1f - (Time.unscaledTime - fadeStart) / 0.6f;
+        if (fade > 0f) DrawRect(new Rect(0, 0, W, H), new Color(0f, 0f, 0f, Mathf.Clamp01(fade)));
+    }
+
+    /// <summary>Cinematica: bandas negras, texto narrativo abajo y fundidos entre planos. Sin HUD.</summary>
+    void DrawCinematic(float W, float H)
+    {
+        float s = scale;
+        CartoCinematic c = CartoCinematic.Active;
+        float black = c != null ? c.Blackness : 1f;
+        if (black > 0f) DrawRect(new Rect(0, 0, W, H), new Color(0f, 0f, 0f, black));
+        float top = H * 0.09f, bottom = H * 0.21f;
+        DrawRect(new Rect(0, 0, W, top), Color.black);
+        DrawRect(new Rect(0, H - bottom, W, bottom), Color.black);
+        if (c != null)
+        {
+            float colW = Mathf.Min(1300f * s, W - 80f * s);
+            Label(new Rect(W * 0.5f - colW * 0.5f, H - bottom + 26 * s, colW, bottom - 70 * s), c.Caption, 30,
+                new Color(1f, 1f, 1f, 1f - black), TextAnchor.UpperCenter);
+        }
+        Label(new Rect(W - 340 * s, H - 48 * s, 320 * s, 36 * s), "ENTER  saltar", 20, Dim, TextAnchor.MiddleRight, false);
     }
 
     void DrawWorld(float W, float H)

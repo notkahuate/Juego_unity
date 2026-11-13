@@ -26,9 +26,11 @@ CONTROLES
   Q / R           cambiar arma cuerpo a cuerpo / a distancia
   E               interactuar (portales, altar de mejoras, cristal)
   1, 2, 3         comprar mejoras en el altar
-  Esc             pausa        Enter  confirmar        N  nueva partida (en pausa)
+  Esc             pausa        Enter  confirmar / saltar cinemática        N  nueva partida (en pausa)
 
 CÓMO SE JUEGA
+- La partida empieza con una cinemática corta que cuenta la historia (Enter la salta), y hay
+  una presentación breve la primera vez que entras en cada era.
 - Empiezas en el Nexo del Tiempo con tu catalejo como arma.
 - Cada portal lleva a una era: Era Pirata y Era Samurái.
 - En cada era hay armas propias (sable y pistola de chispa; katana y kunai),
@@ -52,5 +54,7 @@ DÓNDE AJUSTAR COSAS
   (Carto Health y Carto Enemy), o cambia los valores en Editor/CartoGameBuilder.cs.
 - Posición de enemigos, casas y decoración: Editor/CartoGameBuilder.cs
   (BuildHub, BuildPirate, BuildSamurai) o directamente moviéndolos en la escena.
+- Texto y planos de las cinemáticas: Editor/CartoGameBuilder.cs (AddCinematic en BuildHub,
+  BuildPirate y BuildSamurai) o, ya en la escena, en "_CartoGame" > Carto Cinematic > Shots.
 - Para añadir otra era: copia BuildSamurai, añade armas en CartoWeaponLibrary y
   amplía el arreglo "crystals" de CartoGameState.
