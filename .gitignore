@@ -25,3 +25,11 @@
 .vscode/
 .idea/
 .DS_Store
+
+# Solo se versiona Assets/CartoGame (sin Generated)
+/[Aa]ssets/*
+!/[Aa]ssets/CartoGame/
+!/[Aa]ssets/CartoGame.meta
+/[Aa]ssets/CartoGame/Generated/
+/[Aa]ssets/CartoGame/Generated.meta
+*.slnx
