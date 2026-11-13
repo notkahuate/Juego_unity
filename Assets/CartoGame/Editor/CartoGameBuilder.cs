@@ -243,9 +243,23 @@ public static class CartoGameBuilder
         if (sprint != null) tree.AddChild(sprint, 1.6f);
         sm.defaultState = loco;
 
-        OneShot(sm, loco, "Attack1H", FindClip("MeleeAttack_OneHanded"), 0.7f, true);
-        OneShot(sm, loco, "Attack2H", FindClip("MeleeAttack_TwoHanded"), 0.9f, true);
-        OneShot(sm, loco, "Shoot", FindClip("PunchRight"), 0.5f, true);
+        AnimationClip oneHanded = FindClip("MeleeAttack_OneHanded");
+        AnimationClip twoHanded = FindClip("MeleeAttack_TwoHanded");
+        // Disparo / lanzamiento: el arma va en la mano derecha, asi que se usa el brazo derecho al frente.
+        // Otros clips del pack para probar aqui: "SpellCast", "BowShot".
+        AnimationClip thrust = FindClip("PunchRight");
+
+        // Estados genericos: los usan los enemigos y sirven de respaldo al jugador.
+        OneShot(sm, loco, "Attack1H", oneHanded, 0.7f, true);
+        OneShot(sm, loco, "Attack2H", twoHanded, 0.9f, true);
+        OneShot(sm, loco, "Shoot", thrust, 0.5f, true);
+
+        // Estilo de pelea por era (CartoWeaponDef.attackState). Solo clips Humanoid del proyecto.
+        OneShot(sm, loco, "Atk_Cartografo", thrust, 0.5f, true);      // golpe corto con el catalejo
+        OneShot(sm, loco, "Atk_Pirata", oneHanded, 0.6f, true);       // tajo rapido a una mano
+        OneShot(sm, loco, "Atk_Samurai", twoHanded, 0.85f, true);     // corte amplio a dos manos
+        OneShot(sm, loco, "Shoot_Pirata", thrust, 0.5f, true);        // apuntar y disparar la pistola
+        OneShot(sm, loco, "Shoot_Samurai", thrust, 0.32f, true);      // lanzamiento seco del kunai
         OneShot(sm, loco, "Hit", FindClip("GetHit"), 0.45f, true);
         OneShot(sm, loco, "Roll", FindClip("RollForward"), 0.6f, true);
         OneShot(sm, loco, "Death", FindClip("Death"), 1.6f, false);

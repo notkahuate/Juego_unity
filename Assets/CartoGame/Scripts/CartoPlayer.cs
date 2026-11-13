@@ -230,6 +230,17 @@ public class CartoPlayer : MonoBehaviour
         if (anim != null) anim.CrossFadeInFixedTime(state, 0.08f, 0, 0f);
     }
 
+    /// <summary>
+    /// Reproduce el estado de animacion propio del arma (estilo de su era). Si el arma no define
+    /// uno o el Animator no lo tiene (escenas sin regenerar), usa el estado de respaldo.
+    /// </summary>
+    void PlayWeapon(CartoWeaponDef def, string fallback)
+    {
+        string state = def != null ? def.attackState : null;
+        bool has = anim != null && !string.IsNullOrEmpty(state) && anim.HasState(0, Animator.StringToHash(state));
+        Play(has ? state : fallback);
+    }
+
     // ------------------------------------------------------------------ armas
 
     void CycleWeapon(bool ranged)
@@ -294,7 +305,7 @@ public class CartoPlayer : MonoBehaviour
         else FaceDirection(CameraForward());
 
         showRangedUntil = 0f;
-        Play(def != null && def.twoHanded ? "Attack2H" : "Attack1H");
+        PlayWeapon(def, def != null && def.twoHanded ? "Attack2H" : "Attack1H");
         hitAt = Time.time + delay;
         busyUntil = Time.time + cooldown;
     }
@@ -339,7 +350,7 @@ public class CartoPlayer : MonoBehaviour
 
         showRangedUntil = Time.time + 0.7f;
         UpdateWeaponVisibility();
-        Play("Shoot");
+        PlayWeapon(def, "Shoot");
         fireAt = Time.time + def.hitDelay;
         busyUntil = Time.time + Mathf.Min(0.45f, def.cooldown);
         nextShoot = Time.time + def.cooldown;
