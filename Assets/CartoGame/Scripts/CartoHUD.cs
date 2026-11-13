@@ -167,6 +167,26 @@ public class CartoHUD : MonoBehaviour
 
     // ------------------------------------------------------------ dibujo
 
+    static readonly Color Cyan = new Color(0.6f, 0.95f, 1f);
+    static readonly Color Gold = new Color(1f, 0.85f, 0.3f);
+    static readonly Color Dim = new Color(1f, 1f, 1f, 0.78f);
+    static readonly Color Panel = new Color(0f, 0f, 0f, 0.45f);        // fondo de los grupos del HUD
+    static readonly Color Card = new Color(1f, 1f, 1f, 0.07f);         // fondo de los paneles de menu
+    static readonly GUIContent measure = new GUIContent();
+
+    // Controles (tecla, accion). Se dibujan como tabla en la pantalla inicial y en la pausa.
+    static readonly string[] ControlKeys =
+    {
+        "WASD", "Ratón", "Shift", "Espacio", "Clic izquierdo", "Clic derecho",
+        "Q  /  R", "E", "1, 2, 3", "Ctrl", "Esc"
+    };
+    static readonly string[] ControlActions =
+    {
+        "Moverse", "Cámara (rueda = zoom)", "Correr", "Esquivar", "Ataque cuerpo a cuerpo", "Ataque a distancia",
+        "Cambiar arma cercana / a distancia", "Interactuar (portal, altar, cristal)", "Comprar mejoras en el altar",
+        "Liberar / bloquear cámara", "Pausa"
+    };
+
     void DrawRect(Rect r, Color c)
     {
         Color old = GUI.color;
@@ -177,20 +197,47 @@ public class CartoHUD : MonoBehaviour
 
     void Bar(Rect r, float pct, Color fill)
     {
-        DrawRect(r, new Color(0f, 0f, 0f, 0.65f));
+        DrawRect(r, new Color(0f, 0f, 0f, 0.78f));
         float b = Mathf.Max(1f, 2f * scale);
         DrawRect(new Rect(r.x + b, r.y + b, (r.width - 2f * b) * Mathf.Clamp01(pct), r.height - 2f * b), fill);
     }
 
-    void Label(Rect r, string text, float size, Color color, TextAnchor anchor)
+    int FontSize(float size)
     {
-        style.fontSize = Mathf.Max(9, Mathf.RoundToInt(size * scale));
+        return Mathf.Max(13, Mathf.RoundToInt(size * scale));
+    }
+
+    /// <summary>Texto con contorno oscuro en las cuatro diagonales, legible sobre fondos claros u oscuros.</summary>
+    void Label(Rect r, string text, float size, Color color, TextAnchor anchor, bool wrap = true)
+    {
+        style.fontSize = FontSize(size);
         style.alignment = anchor;
-        float o = Mathf.Max(1f, 2f * scale);
-        style.normal.textColor = new Color(0f, 0f, 0f, 0.85f * color.a);
+        style.wordWrap = wrap;
+        float o = Mathf.Max(1f, 1.6f * scale);
+        style.normal.textColor = new Color(0f, 0f, 0f, 0.8f * color.a);
+        GUI.Label(new Rect(r.x - o, r.y - o, r.width, r.height), text, style);
+        GUI.Label(new Rect(r.x + o, r.y - o, r.width, r.height), text, style);
+        GUI.Label(new Rect(r.x - o, r.y + o, r.width, r.height), text, style);
         GUI.Label(new Rect(r.x + o, r.y + o, r.width, r.height), text, style);
         style.normal.textColor = color;
         GUI.Label(r, text, style);
+    }
+
+    /// <summary>Ancho en pantalla de un texto de una sola linea.</summary>
+    float TextWidth(string text, float size)
+    {
+        style.fontSize = FontSize(size);
+        measure.text = text;
+        return style.CalcSize(measure).x;
+    }
+
+    /// <summary>Texto centrado de una linea con un fondo oscuro ajustado a su ancho.</summary>
+    void Banner(float centerX, float y, float height, string text, float size, Color color, float backAlpha)
+    {
+        float w = TextWidth(text, size) + 56f * scale;
+        Rect r = new Rect(centerX - w * 0.5f, y, w, height);
+        DrawRect(r, new Color(0f, 0f, 0f, backAlpha));
+        Label(r, text, size, color, TextAnchor.MiddleCenter, false);
     }
 
     void OnGUI()
@@ -208,7 +255,6 @@ public class CartoHUD : MonoBehaviour
         float W = Screen.width, H = Screen.height;
         float s = scale;
         Color white = Color.white;
-        Color gold = new Color(1f, 0.85f, 0.3f);
 
         DrawWorld(W, H);
 
@@ -220,38 +266,25 @@ public class CartoHUD : MonoBehaviour
         CartoPlayer player = CartoPlayer.Instance;
         float hp = player != null ? player.health.current : CartoGameState.health;
         float maxHp = CartoGameState.maxHealth;
-        Rect hpRect = new Rect(30 * s, 28 * s, 400 * s, 34 * s);
+        DrawRect(new Rect(20 * s, 18 * s, 440 * s, 92 * s), Panel);
+        Rect hpRect = new Rect(30 * s, 26 * s, 420 * s, 40 * s);
         Bar(hpRect, maxHp > 0f ? hp / maxHp : 0f, new Color(0.85f, 0.18f, 0.2f));
-        Label(hpRect, "Vida  " + Mathf.CeilToInt(hp) + " / " + Mathf.RoundToInt(maxHp), 20, white, TextAnchor.MiddleCenter);
-        Rect xpRect = new Rect(30 * s, 68 * s, 400 * s, 22 * s);
-        Bar(xpRect, (float)CartoGameState.xp / CartoGameState.XpToNext, new Color(0.3f, 0.6f, 1f));
-        Label(xpRect, "Nivel " + CartoGameState.level + "   XP " + CartoGameState.xp + " / " + CartoGameState.XpToNext, 15, white, TextAnchor.MiddleCenter);
+        Label(hpRect, "Vida  " + Mathf.CeilToInt(hp) + " / " + Mathf.RoundToInt(maxHp), 23, white, TextAnchor.MiddleCenter, false);
+        Rect xpRect = new Rect(30 * s, 72 * s, 420 * s, 30 * s);
+        Bar(xpRect, (float)CartoGameState.xp / CartoGameState.XpToNext, new Color(0.25f, 0.5f, 0.95f));
+        Label(xpRect, "Nivel " + CartoGameState.level + "     XP " + CartoGameState.xp + " / " + CartoGameState.XpToNext, 18, white, TextAnchor.MiddleCenter, false);
 
         // --- Arriba a la derecha: oro y cristales ---
-        Label(new Rect(W - 430 * s, 24 * s, 400 * s, 40 * s), "Oro: " + CartoGameState.gold, 30, gold, TextAnchor.MiddleRight);
-        Label(new Rect(W - 430 * s, 64 * s, 400 * s, 34 * s), "Cristales: " + CartoGameState.CrystalCount + " / 2", 24, new Color(0.6f, 0.95f, 1f), TextAnchor.MiddleRight);
+        DrawRect(new Rect(W - 330 * s, 18 * s, 310 * s, 92 * s), Panel);
+        Label(new Rect(W - 320 * s, 22 * s, 286 * s, 44 * s), "Oro  " + CartoGameState.gold, 31, Gold, TextAnchor.MiddleRight, false);
+        Label(new Rect(W - 320 * s, 66 * s, 286 * s, 38 * s), "Cristales  " + CartoGameState.CrystalCount + " / 2", 24, Cyan, TextAnchor.MiddleRight, false);
 
-        // --- Objetivo ---
+        // --- Arriba al centro: objetivo (baja una fila si la pantalla es estrecha) y jefe ---
+        float topY = W >= 1750f * s ? 20f * s : 120f * s;
         CartoGame game = CartoGame.Instance;
         if (game != null && !string.IsNullOrEmpty(game.objective))
-            Label(new Rect(W * 0.5f - 500 * s, 20 * s, 1000 * s, 30 * s), game.objective, 19, new Color(1f, 1f, 1f, 0.85f), TextAnchor.MiddleCenter);
+            Banner(W * 0.5f, topY, 40 * s, game.objective, 21, white, 0.45f);
 
-        // --- Abajo a la derecha: armas ---
-        CartoWeaponLibrary lib = CartoWeaponLibrary.Instance;
-        if (lib != null)
-        {
-            CartoWeaponDef m = lib.Get(CartoGameState.meleeId);
-            CartoWeaponDef r = lib.Get(CartoGameState.rangedId);
-            string mt = m != null ? m.displayName + "  Nv." + (CartoGameState.WeaponLevel(m.id) + 1) : "—";
-            string rt = r != null ? r.displayName + "  Nv." + (CartoGameState.WeaponLevel(r.id) + 1) : "(ninguna)";
-            Label(new Rect(W - 630 * s, H - 100 * s, 600 * s, 34 * s), "Clic izq.  " + mt, 24, white, TextAnchor.MiddleRight);
-            Label(new Rect(W - 630 * s, H - 64 * s, 600 * s, 34 * s), "Clic der.  " + rt, 24, white, TextAnchor.MiddleRight);
-        }
-        Label(new Rect(30 * s, H - 50 * s, 1300 * s, 30 * s),
-            "WASD mover   Shift correr   Espacio esquivar   Q / R cambiar arma   E interactuar   Ctrl liberar/bloquear cámara   Esc pausa",
-            16, new Color(1f, 1f, 1f, 0.7f), TextAnchor.MiddleLeft);
-
-        // --- Barra del jefe ---
         CartoEnemy boss = null;
         for (int i = 0; i < CartoEnemy.All.Count; i++)
         {
@@ -260,24 +293,48 @@ public class CartoHUD : MonoBehaviour
         }
         if (boss != null)
         {
-            Rect br = new Rect(W * 0.5f - 380 * s, 96 * s, 760 * s, 30 * s);
-            Label(new Rect(br.x, br.y - 36 * s, br.width, 34 * s), boss.health.displayName, 26, new Color(1f, 0.8f, 0.5f), TextAnchor.MiddleCenter);
+            Rect br = new Rect(W * 0.5f - 380 * s, topY + 90 * s, 760 * s, 32 * s);
+            Label(new Rect(br.x, br.y - 40 * s, br.width, 38 * s), boss.health.displayName, 27, new Color(1f, 0.8f, 0.5f), TextAnchor.MiddleCenter, false);
             Bar(br, boss.health.Percent, new Color(0.75f, 0.2f, 0.85f));
+        }
+
+        // --- Abajo a la derecha: armas equipadas ---
+        CartoWeaponLibrary lib = CartoWeaponLibrary.Instance;
+        if (lib != null)
+        {
+            CartoWeaponDef m = lib.Get(CartoGameState.meleeId);
+            CartoWeaponDef r = lib.Get(CartoGameState.rangedId);
+            string mt = m != null ? m.displayName + "  Nv." + (CartoGameState.WeaponLevel(m.id) + 1) : "—";
+            string rt = r != null ? r.displayName + "  Nv." + (CartoGameState.WeaponLevel(r.id) + 1) : "(ninguna)";
+            Rect wp = new Rect(W - 560 * s, H - 106 * s, 540 * s, 88 * s);
+            DrawRect(wp, Panel);
+            Rect row1 = new Rect(wp.x + 16 * s, wp.y + 6 * s, wp.width - 32 * s, 38 * s);
+            Rect row2 = new Rect(wp.x + 16 * s, wp.y + 44 * s, wp.width - 32 * s, 38 * s);
+            Label(row1, "Clic izq.", 19, Dim, TextAnchor.MiddleLeft, false);
+            Label(row1, mt, 25, white, TextAnchor.MiddleRight, false);
+            Label(row2, "Clic der.", 19, Dim, TextAnchor.MiddleLeft, false);
+            Label(row2, rt, 25, r != null ? white : Dim, TextAnchor.MiddleRight, false);
+        }
+
+        // --- Abajo a la izquierda: recordatorio de controles en dos lineas ---
+        Rect cp = new Rect(20 * s, H - 96 * s, 720 * s, 78 * s);
+        DrawRect(cp, Panel);
+        Label(new Rect(cp.x + 16 * s, cp.y + 6 * s, cp.width - 32 * s, 32 * s),
+            "WASD mover     Shift correr     Espacio esquivar     E interactuar", 19, Dim, TextAnchor.MiddleLeft, false);
+        Label(new Rect(cp.x + 16 * s, cp.y + 40 * s, cp.width - 32 * s, 32 * s),
+            "Q / R cambiar arma     Ctrl liberar/bloquear cámara     Esc pausa", 19, Dim, TextAnchor.MiddleLeft, false);
+        if (cursorFree && overlay == Overlay.None)
+        {
+            Rect ft = new Rect(20 * s, cp.y - 46 * s, 520 * s, 38 * s);
+            DrawRect(ft, new Color(0.25f, 0.18f, 0f, 0.8f));
+            Label(ft, "CÁMARA LIBRE  —  Ctrl para bloquearla", 19, Gold, TextAnchor.MiddleCenter, false);
         }
 
         // --- Mensajes ---
         if (Time.unscaledTime < toastUntil && !string.IsNullOrEmpty(toast) && overlay == Overlay.None)
-        {
-            Rect tr = new Rect(W * 0.5f - 600 * s, H * 0.24f, 1200 * s, 60 * s);
-            DrawRect(new Rect(tr.x + 100 * s, tr.y, tr.width - 200 * s, tr.height), new Color(0f, 0f, 0f, 0.45f));
-            Label(tr, toast, 28, gold, TextAnchor.MiddleCenter);
-        }
+            Banner(W * 0.5f, H * 0.24f, 62 * s, toast, 29, Gold, 0.6f);
         if (Time.frameCount - promptFrame <= 1 && overlay == Overlay.None && !CartoShop.IsOpen)
-        {
-            Rect pr = new Rect(W * 0.5f - 450 * s, H * 0.72f, 900 * s, 54 * s);
-            DrawRect(new Rect(pr.x + 120 * s, pr.y, pr.width - 240 * s, pr.height), new Color(0f, 0f, 0f, 0.55f));
-            Label(pr, prompt, 26, white, TextAnchor.MiddleCenter);
-        }
+            Banner(W * 0.5f, H * 0.72f, 56 * s, prompt, 27, white, 0.68f);
 
         if (CartoShop.IsOpen && overlay == Overlay.None) DrawShop(W, H);
         if (overlay != Overlay.None) DrawOverlay(W, H);
@@ -297,7 +354,7 @@ public class CartoHUD : MonoBehaviour
             if (!e.Aggro && e.health.Percent >= 1f) continue;
             Vector3 sp = cam.WorldToScreenPoint(e.transform.position + Vector3.up * (e.Height + 0.35f));
             if (sp.z <= 0f || sp.z > 40f) continue;
-            float w = 110f * s, h = 12f * s;
+            float w = 124f * s, h = 15f * s;
             Bar(new Rect(sp.x - w * 0.5f, H - sp.y - h, w, h), e.health.Percent, new Color(0.9f, 0.25f, 0.2f));
         }
 
@@ -315,28 +372,48 @@ public class CartoHUD : MonoBehaviour
             if (sp.z <= 0f) continue;
             Color c = f.color;
             c.a = Mathf.Clamp01(1.6f - age * 1.6f);
-            Label(new Rect(sp.x - 150 * s, H - sp.y - 20 * s, 300 * s, 40 * s), f.text, 26, c, TextAnchor.MiddleCenter);
+            Label(new Rect(sp.x - 150 * s, H - sp.y - 20 * s, 300 * s, 40 * s), f.text, 28, c, TextAnchor.MiddleCenter, false);
         }
     }
 
     void DrawShop(float W, float H)
     {
         float s = scale;
-        Rect box = new Rect(W * 0.5f - 520 * s, H * 0.5f - 230 * s, 1040 * s, 460 * s);
-        DrawRect(box, new Color(0.05f, 0.03f, 0.12f, 0.92f));
-        DrawRect(new Rect(box.x, box.y, box.width, 6 * s), new Color(0.6f, 0.9f, 1f));
-        Label(new Rect(box.x, box.y + 22 * s, box.width, 50 * s), "ALTAR DE MEJORAS", 38, new Color(0.6f, 0.95f, 1f), TextAnchor.MiddleCenter);
-        Label(new Rect(box.x, box.y + 76 * s, box.width, 36 * s), "Oro disponible: " + CartoGameState.gold, 26, new Color(1f, 0.85f, 0.3f), TextAnchor.MiddleCenter);
+        Rect box = new Rect(W * 0.5f - 560 * s, H * 0.5f - 245 * s, 1120 * s, 490 * s);
+        DrawRect(box, new Color(0.05f, 0.03f, 0.12f, 0.94f));
+        DrawRect(new Rect(box.x, box.y, box.width, 6 * s), Cyan);
+        Label(new Rect(box.x, box.y + 22 * s, box.width, 50 * s), "ALTAR DE MEJORAS", 38, Cyan, TextAnchor.MiddleCenter, false);
+        Label(new Rect(box.x, box.y + 78 * s, box.width, 38 * s), "Oro disponible: " + CartoGameState.gold, 27, Gold, TextAnchor.MiddleCenter, false);
         for (int n = 1; n <= 3; n++)
         {
-            Rect row = new Rect(box.x + 50 * s, box.y + (140 + (n - 1) * 70) * s, box.width - 100 * s, 56 * s);
-            DrawRect(row, new Color(1f, 1f, 1f, 0.07f));
-            Label(new Rect(row.x + 20 * s, row.y, row.width - 40 * s, row.height), CartoShop.OptionText(n), 21, Color.white, TextAnchor.MiddleLeft);
+            Rect row = new Rect(box.x + 40 * s, box.y + (144 + (n - 1) * 74) * s, box.width - 80 * s, 60 * s);
+            DrawRect(row, new Color(1f, 1f, 1f, 0.09f));
+            Label(new Rect(row.x + 20 * s, row.y, row.width - 40 * s, row.height), CartoShop.OptionText(n), 23, Color.white, TextAnchor.MiddleLeft, false);
         }
-        Label(new Rect(box.x, box.yMax - 84 * s, box.width, 34 * s),
-            "Pulsa 1, 2 o 3 para comprar.  Las mejoras de arma se aplican al arma equipada (Q / R para cambiarla).",
-            18, new Color(1f, 1f, 1f, 0.75f), TextAnchor.MiddleCenter);
-        Label(new Rect(box.x, box.yMax - 48 * s, box.width, 34 * s), "[E] o [Esc]  Cerrar", 20, Color.white, TextAnchor.MiddleCenter);
+        Label(new Rect(box.x + 40 * s, box.yMax - 104 * s, box.width - 80 * s, 36 * s),
+            "Pulsa 1, 2 o 3 para comprar. Las mejoras de arma se aplican al arma equipada (Q / R para cambiarla).",
+            20, Dim, TextAnchor.MiddleCenter);
+        Label(new Rect(box.x, box.yMax - 56 * s, box.width, 38 * s), "[E] o [Esc]  Cerrar", 23, Color.white, TextAnchor.MiddleCenter, false);
+    }
+
+    /// <summary>Tabla de controles: tecla a la izquierda (dorado) y accion a la derecha.</summary>
+    void DrawControls(Rect box)
+    {
+        float s = scale;
+        DrawRect(box, Card);
+        DrawRect(new Rect(box.x, box.y, box.width, 4 * s), Cyan);
+        Label(new Rect(box.x, box.y + 10 * s, box.width, 36 * s), "CONTROLES", 26, Cyan, TextAnchor.MiddleCenter, false);
+        float keyW = 190 * s;
+        float x = box.x + 24 * s;
+        float y = box.y + 56 * s;
+        float row = 32 * s;
+        for (int i = 0; i < ControlKeys.Length; i++)
+        {
+            if (i % 2 == 1) DrawRect(new Rect(box.x + 12 * s, y, box.width - 24 * s, row), new Color(1f, 1f, 1f, 0.04f));
+            Label(new Rect(x, y, keyW, row), ControlKeys[i], 21, Gold, TextAnchor.MiddleRight, false);
+            Label(new Rect(x + keyW + 24 * s, y, box.width - keyW - 72 * s, row), ControlActions[i], 21, Color.white, TextAnchor.MiddleLeft, false);
+            y += row;
+        }
     }
 
     /// <summary>
@@ -346,12 +423,10 @@ public class CartoHUD : MonoBehaviour
     void DrawCollection(Rect box)
     {
         float s = scale;
-        Color cyan = new Color(0.6f, 0.95f, 1f);
-        Color gold = new Color(1f, 0.85f, 0.3f);
-        Color locked = new Color(1f, 1f, 1f, 0.42f);
-        DrawRect(box, new Color(1f, 1f, 1f, 0.07f));
-        DrawRect(new Rect(box.x, box.y, box.width, 4 * s), cyan);
-        Label(new Rect(box.x, box.y + 10 * s, box.width, 36 * s), "COLECCIÓN DE ARMAS", 26, cyan, TextAnchor.MiddleCenter);
+        Color locked = new Color(1f, 1f, 1f, 0.45f);
+        DrawRect(box, Card);
+        DrawRect(new Rect(box.x, box.y, box.width, 4 * s), Cyan);
+        Label(new Rect(box.x, box.y + 10 * s, box.width, 36 * s), "COLECCIÓN DE ARMAS", 26, Cyan, TextAnchor.MiddleCenter, false);
 
         CartoWeaponLibrary lib = CartoWeaponLibrary.Instance;
         if (lib == null) return;
@@ -359,8 +434,8 @@ public class CartoHUD : MonoBehaviour
         for (int i = 0; i < lib.weapons.Count; i++)
             if (!eras.Contains(lib.weapons[i].era)) eras.Add(lib.weapons[i].era);
 
-        float x = box.x + 30 * s, w = box.width - 60 * s;
-        float y = box.y + 54 * s;
+        float x = box.x + 28 * s, w = box.width - 56 * s;
+        float y = box.y + 56 * s;
         float row = 32 * s;
         for (int e = 0; e < eras.Count; e++)
         {
@@ -371,8 +446,8 @@ public class CartoHUD : MonoBehaviour
                 total++;
                 if (CartoGameState.Owns(lib.weapons[i].id)) got++;
             }
-            Label(new Rect(x, y, w, row), CartoWeaponLibrary.EraTitle(eras[e]), 22, gold, TextAnchor.MiddleLeft);
-            Label(new Rect(x, y, w, row), got + " / " + total, 20, gold, TextAnchor.MiddleRight);
+            Label(new Rect(x, y, w, row), CartoWeaponLibrary.EraTitle(eras[e]), 23, Gold, TextAnchor.MiddleLeft, false);
+            Label(new Rect(x, y, w, row), got + " / " + total, 21, Gold, TextAnchor.MiddleRight, false);
             DrawRect(new Rect(x, y + row, w, Mathf.Max(1f, 2f * s)), new Color(1f, 1f, 1f, 0.25f));
             y += row + 6 * s;
 
@@ -392,12 +467,12 @@ public class CartoHUD : MonoBehaviour
                     DrawRect(new Rect(mark.x + b, mark.y + b, mark.width - 2f * b, mark.height - 2f * b), new Color(0.05f, 0.03f, 0.12f));
                 }
 
-                Label(new Rect(x + 34 * s, y, w * 0.42f, row), d.displayName, 22, owned ? Color.white : locked, TextAnchor.MiddleLeft);
-                Label(new Rect(x + w * 0.44f, y, w * 0.28f, row), d.ranged ? "a distancia" : "cuerpo a cuerpo", 18,
-                    owned ? new Color(1f, 1f, 1f, 0.75f) : locked, TextAnchor.MiddleLeft);
+                Label(new Rect(x + 34 * s, y, w * 0.4f, row), d.displayName, 22, owned ? Color.white : locked, TextAnchor.MiddleLeft, false);
+                Label(new Rect(x + w * 0.43f, y, w * 0.27f, row), d.ranged ? "a distancia" : "cuerpo a cuerpo", 19,
+                    owned ? Dim : locked, TextAnchor.MiddleLeft, false);
                 string status = !owned ? "Bloqueada"
                     : "Nv." + (CartoGameState.WeaponLevel(d.id) + 1) + (equipped ? "  ·  equipada" : "");
-                Label(new Rect(x, y, w, row), status, 20, !owned ? locked : (equipped ? gold : Color.white), TextAnchor.MiddleRight);
+                Label(new Rect(x, y, w, row), status, 21, !owned ? locked : (equipped ? Gold : Color.white), TextAnchor.MiddleRight, false);
                 y += row;
             }
             y += 8 * s;
@@ -407,63 +482,84 @@ public class CartoHUD : MonoBehaviour
     void DrawOverlay(float W, float H)
     {
         float s = scale;
-        DrawRect(new Rect(0, 0, W, H), new Color(0.02f, 0.01f, 0.06f, overlay == Overlay.Death ? 0.6f : 0.82f));
-        Rect title = new Rect(0, H * 0.14f, W, 90 * s);
-        Rect body = new Rect(W * 0.5f - 620 * s, H * 0.30f, 1240 * s, H * 0.48f);
-        Rect foot = new Rect(0, H * 0.84f, W, 50 * s);
-        Color cyan = new Color(0.6f, 0.95f, 1f);
-        Color gold = new Color(1f, 0.85f, 0.3f);
+        DrawRect(new Rect(0, 0, W, H), new Color(0.02f, 0.01f, 0.06f, overlay == Overlay.Death ? 0.66f : 0.86f));
+        Rect title = new Rect(0, H * 0.07f, W, 90 * s);
+        Rect foot = new Rect(0, H * 0.87f, W, 54 * s);
+        float colW = Mathf.Min(1240f * s, W - 80f * s);            // columna de texto centrada
+        Rect body = new Rect(W * 0.5f - colW * 0.5f, H * 0.34f, colW, H * 0.45f);
 
         switch (overlay)
         {
             case Overlay.Intro:
-                Label(title, "EL CARTÓGRAFO DEL TIEMPO", 64, cyan, TextAnchor.MiddleCenter);
-                Label(body,
-                    "Un desastre temporal ha mezclado todas las eras.\n" +
-                    "Tú, el último cartógrafo, debes viajar a cada época y recuperar los cristales del tiempo " +
-                    "para devolver el mundo a la normalidad.\n\n" +
-                    "WASD  moverse          Ratón  cámara          Shift  correr          Espacio  esquivar\n" +
-                    "Clic izquierdo  atacar          Clic derecho  disparar          Q / R  cambiar arma\n" +
-                    "E  interactuar (portales, altar, cristales)          Ctrl  liberar/bloquear cámara          Esc  pausa\n\n" +
-                    "Derrota enemigos para ganar oro y experiencia, consigue las armas de cada era\n" +
-                    "y mejóralas en el Altar del Nexo.",
+            {
+                Label(title, "EL CARTÓGRAFO DEL TIEMPO", 64, Cyan, TextAnchor.MiddleCenter, false);
+                Label(new Rect(body.x, H * 0.18f, body.width, 80 * s),
+                    "Un desastre temporal ha mezclado todas las eras. Tú, el último cartógrafo, debes viajar " +
+                    "a cada época y recuperar los cristales del tiempo.",
                     25, Color.white, TextAnchor.UpperCenter);
-                Label(foot, "Pulsa ENTER para comenzar", 32, gold, TextAnchor.MiddleCenter);
+                float cw = Mathf.Min(760f * s, W - 80f * s);
+                DrawControls(new Rect(W * 0.5f - cw * 0.5f, H * 0.29f, cw, 424 * s));
+                Label(new Rect(body.x, H * 0.71f, body.width, 80 * s),
+                    "Derrota enemigos para ganar oro y experiencia, consigue las armas de cada era " +
+                    "y mejóralas en el Altar del Nexo.",
+                    23, Dim, TextAnchor.UpperCenter);
+                Label(foot, "Pulsa ENTER para comenzar", 32, Gold, TextAnchor.MiddleCenter, false);
                 break;
+            }
 
             case Overlay.Pause:
-                Label(title, "PAUSA", 64, cyan, TextAnchor.MiddleCenter);
-                Label(body,
-                    "WASD  moverse          Ratón  cámara          Shift  correr          Espacio  esquivar\n" +
-                    "Clic izquierdo  atacar          Clic derecho  disparar          Q / R  cambiar arma\n" +
-                    "E  interactuar          Rueda del ratón  zoom          Ctrl  liberar/bloquear cámara\n\n" +
-                    "Nivel " + CartoGameState.level + "     Oro " + CartoGameState.gold +
-                    "     Cristales " + CartoGameState.CrystalCount + " / 2     Enemigos derrotados " + CartoGameState.kills,
-                    25, Color.white, TextAnchor.UpperCenter);
-                DrawCollection(new Rect(W * 0.5f - 470 * s, H * 0.46f, 940 * s, 372 * s));
-                Label(foot, "ESC o ENTER  continuar          N  nueva partida", 28, gold, TextAnchor.MiddleCenter);
+            {
+                Label(title, "PAUSA", 64, Cyan, TextAnchor.MiddleCenter, false);
+                Label(new Rect(0, H * 0.175f, W, 44 * s),
+                    "Nivel " + CartoGameState.level + "        Oro " + CartoGameState.gold +
+                    "        Cristales " + CartoGameState.CrystalCount + " / 2        Enemigos derrotados " + CartoGameState.kills,
+                    27, Gold, TextAnchor.MiddleCenter, false);
+                // Dos columnas: controles a la izquierda, coleccion de armas a la derecha.
+                float total = Mathf.Min(1520f * s, W - 60f * s);
+                float gap = 30f * s;
+                float leftW = (total - gap) * 0.44f;
+                float x0 = W * 0.5f - total * 0.5f;
+                float y0 = H * 0.25f;
+                DrawControls(new Rect(x0, y0, leftW, 424 * s));
+                DrawCollection(new Rect(x0 + leftW + gap, y0, total - gap - leftW, 424 * s));
+                Label(foot, "ESC o ENTER  continuar          N  nueva partida", 29, Gold, TextAnchor.MiddleCenter, false);
                 break;
+            }
 
             case Overlay.Death:
-                Label(title, "HAS CAÍDO", 70, new Color(1f, 0.3f, 0.3f), TextAnchor.MiddleCenter);
-                Label(body, "El tiempo te devuelve al Nexo.\nPierdes una cuarta parte de tu oro, pero conservas armas, nivel y cristales.",
-                    27, Color.white, TextAnchor.UpperCenter);
-                Label(foot, "Pulsa ENTER para volver al Nexo", 32, gold, TextAnchor.MiddleCenter);
+                Label(new Rect(0, H * 0.2f, W, 90 * s), "HAS CAÍDO", 70, new Color(1f, 0.3f, 0.3f), TextAnchor.MiddleCenter, false);
+                Label(new Rect(body.x, H * 0.38f, body.width, body.height),
+                    "El tiempo te devuelve al Nexo.\nPierdes una cuarta parte de tu oro, pero conservas armas, nivel y cristales.",
+                    29, Color.white, TextAnchor.UpperCenter);
+                Label(foot, "Pulsa ENTER para volver al Nexo", 32, Gold, TextAnchor.MiddleCenter, false);
                 break;
 
             case Overlay.Victory:
-                Label(title, "¡EL TIEMPO HA SIDO RESTAURADO!", 60, cyan, TextAnchor.MiddleCenter);
-                int total = Mathf.FloorToInt(CartoGameState.playTime);
-                Label(body,
+            {
+                Label(new Rect(0, H * 0.12f, W, 90 * s), "¡EL TIEMPO HA SIDO RESTAURADO!", 60, Cyan, TextAnchor.MiddleCenter, false);
+                Label(new Rect(body.x, H * 0.28f, body.width, 120 * s),
                     "Has reunido los cristales de la Era Pirata y de la Era Samurái.\n" +
-                    "Las épocas vuelven a su lugar gracias al cartógrafo.\n\n" +
-                    "Nivel alcanzado: " + CartoGameState.level + "\n" +
-                    "Enemigos derrotados: " + CartoGameState.kills + "\n" +
-                    "Oro: " + CartoGameState.gold + "\n" +
-                    "Tiempo de juego: " + (total / 60) + " min " + (total % 60) + " s",
-                    28, Color.white, TextAnchor.UpperCenter);
-                Label(foot, "ENTER  seguir explorando          N  nueva partida", 28, gold, TextAnchor.MiddleCenter);
+                    "Las épocas vuelven a su lugar gracias al cartógrafo.",
+                    29, Color.white, TextAnchor.UpperCenter);
+                int total = Mathf.FloorToInt(CartoGameState.playTime);
+                string[] names = { "Nivel alcanzado", "Enemigos derrotados", "Oro", "Tiempo de juego" };
+                string[] values =
+                {
+                    CartoGameState.level.ToString(), CartoGameState.kills.ToString(), CartoGameState.gold.ToString(),
+                    (total / 60) + " min " + (total % 60) + " s"
+                };
+                float bw = Mathf.Min(640f * s, W - 80f * s);
+                Rect box = new Rect(W * 0.5f - bw * 0.5f, H * 0.46f, bw, 200 * s);
+                DrawRect(box, Card);
+                for (int i = 0; i < names.Length; i++)
+                {
+                    Rect row = new Rect(box.x + 30 * s, box.y + (16 + i * 42) * s, box.width - 60 * s, 42 * s);
+                    Label(row, names[i], 26, Dim, TextAnchor.MiddleLeft, false);
+                    Label(row, values[i], 26, Gold, TextAnchor.MiddleRight, false);
+                }
+                Label(foot, "ENTER  seguir explorando          N  nueva partida", 29, Gold, TextAnchor.MiddleCenter, false);
                 break;
+            }
         }
     }
 }
