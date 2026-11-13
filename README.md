@@ -24,6 +24,7 @@ Demo jugable en Unity (3D, Built-in Render Pipeline). Viaja desde el Nexo del Ti
 | WASD | Moverse |
 | Ratón | Cámara (rueda = zoom) |
 | Shift | Correr |
+| Ctrl | Liberar / bloquear la cámara (interruptor; el juego no se pausa) |
 | Espacio | Esquivar |
 | Clic izquierdo / derecho | Ataque cuerpo a cuerpo / a distancia |
 | Q / R | Cambiar arma cuerpo a cuerpo / a distancia |

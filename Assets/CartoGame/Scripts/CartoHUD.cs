@@ -23,6 +23,7 @@ public class CartoHUD : MonoBehaviour
     static string prompt = "";
     static int promptFrame = -10;
     static float flashUntil;
+    static bool cursorFree;   // Ctrl: raton libre y camara quieta, sin pausar
     static readonly List<Floater> floaters = new List<Floater>();
 
     GUIStyle style;
@@ -30,6 +31,7 @@ public class CartoHUD : MonoBehaviour
 
     public static bool OverlayActive { get { return overlay != Overlay.None; } }
     public static bool Blocking { get { return overlay != Overlay.None || CartoShop.IsOpen; } }
+    public static bool CursorFree { get { return cursorFree; } }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void DomainReset()
@@ -40,6 +42,7 @@ public class CartoHUD : MonoBehaviour
         prompt = "";
         promptFrame = -10;
         flashUntil = 0f;
+        cursorFree = false;
         floaters.Clear();
     }
 
@@ -78,7 +81,16 @@ public class CartoHUD : MonoBehaviour
         overlay = o;
         if (o == Overlay.Intro || o == Overlay.Pause || o == Overlay.Victory) Time.timeScale = 0f;
         else Time.timeScale = 1f;
-        bool free = o == Overlay.Pause;
+        ApplyCursor();
+    }
+
+    /// <summary>
+    /// Unico sitio que decide el estado del raton: libre en pausa o si se libero con Ctrl;
+    /// bloqueado en el resto de casos. La camara solo gira con el raton bloqueado.
+    /// </summary>
+    static void ApplyCursor()
+    {
+        bool free = overlay == Overlay.Pause || (overlay == Overlay.None && cursorFree);
         Cursor.lockState = free ? CursorLockMode.None : CursorLockMode.Locked;
         Cursor.visible = free;
     }
@@ -89,6 +101,7 @@ public class CartoHUD : MonoBehaviour
     {
         floaters.Clear();
         CartoShop.IsOpen = false;
+        cursorFree = false;
         if (overlay == Overlay.Pause || overlay == Overlay.Death) overlay = Overlay.None;
     }
 
@@ -102,10 +115,16 @@ public class CartoHUD : MonoBehaviour
                     if (CartoShop.IsOpen) CartoShop.Close();
                     else ShowOverlay(Overlay.Pause);
                 }
-                else if (Cursor.lockState != CursorLockMode.Locked && CartoInput.AttackDown)
+                else if (CartoInput.FreeCursorDown)
                 {
-                    Cursor.lockState = CursorLockMode.Locked;
-                    Cursor.visible = false;
+                    cursorFree = !cursorFree;
+                    ApplyCursor();
+                    Toast(cursorFree ? "Cámara liberada  —  Ctrl para volver a bloquearla" : "Cámara bloqueada", 2f);
+                }
+                else if (!cursorFree && Cursor.lockState != CursorLockMode.Locked && CartoInput.AttackDown)
+                {
+                    // El editor suelta el raton con Esc: un clic lo vuelve a capturar.
+                    ApplyCursor();
                 }
                 break;
 
@@ -228,8 +247,8 @@ public class CartoHUD : MonoBehaviour
             Label(new Rect(W - 630 * s, H - 100 * s, 600 * s, 34 * s), "Clic izq.  " + mt, 24, white, TextAnchor.MiddleRight);
             Label(new Rect(W - 630 * s, H - 64 * s, 600 * s, 34 * s), "Clic der.  " + rt, 24, white, TextAnchor.MiddleRight);
         }
-        Label(new Rect(30 * s, H - 50 * s, 1100 * s, 30 * s),
-            "WASD mover   Shift correr   Espacio esquivar   Q / R cambiar arma   E interactuar   Esc pausa",
+        Label(new Rect(30 * s, H - 50 * s, 1300 * s, 30 * s),
+            "WASD mover   Shift correr   Espacio esquivar   Q / R cambiar arma   E interactuar   Ctrl liberar/bloquear cámara   Esc pausa",
             16, new Color(1f, 1f, 1f, 0.7f), TextAnchor.MiddleLeft);
 
         // --- Barra del jefe ---
@@ -340,7 +359,7 @@ public class CartoHUD : MonoBehaviour
                     "para devolver el mundo a la normalidad.\n\n" +
                     "WASD  moverse          Ratón  cámara          Shift  correr          Espacio  esquivar\n" +
                     "Clic izquierdo  atacar          Clic derecho  disparar          Q / R  cambiar arma\n" +
-                    "E  interactuar (portales, altar, cristales)          Esc  pausa\n\n" +
+                    "E  interactuar (portales, altar, cristales)          Ctrl  liberar/bloquear cámara          Esc  pausa\n\n" +
                     "Derrota enemigos para ganar oro y experiencia, consigue las armas de cada era\n" +
                     "y mejóralas en el Altar del Nexo.",
                     25, Color.white, TextAnchor.UpperCenter);
@@ -352,7 +371,7 @@ public class CartoHUD : MonoBehaviour
                 Label(body,
                     "WASD  moverse          Ratón  cámara          Shift  correr          Espacio  esquivar\n" +
                     "Clic izquierdo  atacar          Clic derecho  disparar          Q / R  cambiar arma\n" +
-                    "E  interactuar          Rueda del ratón  zoom\n\n" +
+                    "E  interactuar          Rueda del ratón  zoom          Ctrl  liberar/bloquear cámara\n\n" +
                     "Nivel " + CartoGameState.level + "     Oro " + CartoGameState.gold +
                     "     Cristales " + CartoGameState.CrystalCount + " / 2     Enemigos derrotados " + CartoGameState.kills,
                     25, Color.white, TextAnchor.UpperCenter);

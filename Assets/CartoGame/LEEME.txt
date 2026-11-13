@@ -19,6 +19,7 @@ CONTROLES
   WASD            moverse
   Ratón           cámara (rueda = zoom)
   Shift           correr
+  Ctrl            liberar / bloquear la cámara (ratón libre y cámara quieta, sin pausar el juego)
   Espacio         esquivar (eres invulnerable mientras ruedas)
   Clic izquierdo  ataque cuerpo a cuerpo
   Clic derecho    ataque a distancia (cuando tengas pistola o kunai)

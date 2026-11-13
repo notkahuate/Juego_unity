@@ -51,6 +51,7 @@ public static class CartoInput
     public static bool PauseDown { get { return K != null && K.escapeKey.wasPressedThisFrame; } }
     public static bool ConfirmDown { get { return K != null && (K.enterKey.wasPressedThisFrame || K.numpadEnterKey.wasPressedThisFrame); } }
     public static bool NewGameDown { get { return K != null && K.nKey.wasPressedThisFrame; } }
+    public static bool FreeCursorDown { get { return K != null && (K.leftCtrlKey.wasPressedThisFrame || K.rightCtrlKey.wasPressedThisFrame); } }
 
     public static bool NumberDown(int n)
     {
@@ -98,6 +99,7 @@ public static class CartoInput
     public static bool PauseDown { get { return Input.GetKeyDown(KeyCode.Escape); } }
     public static bool ConfirmDown { get { return Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter); } }
     public static bool NewGameDown { get { return Input.GetKeyDown(KeyCode.N); } }
+    public static bool FreeCursorDown { get { return Input.GetKeyDown(KeyCode.LeftControl) || Input.GetKeyDown(KeyCode.RightControl); } }
 
     public static bool NumberDown(int n)
     {
