@@ -21,12 +21,17 @@ public class CartoPlayer : MonoBehaviour
     // de "Armors"). Disponibles: Starter_Chest, Starter_Pants, Starter_Boots,
     // PlateSet1_Chest, PlateSet1_Pants, PlateSet1_Boots, PlateSet1_Gloves,
     // PlateSet1_Shoulders, PlateSet1_Helmet.
-    public string[] outfitPieces = { "Starter_Chest", "Starter_Pants", "Starter_Boots" };
+    // Por defecto lleva la armadura de placas completa menos el casco, para que se le vea la cara.
+    public string[] outfitPieces =
+    {
+        "PlateSet1_Chest", "PlateSet1_Pants", "PlateSet1_Boots", "PlateSet1_Gloves", "PlateSet1_Shoulders"
+    };
 
     [HideInInspector] public CartoHealth health;
 
     CharacterController cc;
     Animator anim;
+    CartoBreath breath;
     Transform grip;
     GameObject meleeModel;
     GameObject rangedModel;
@@ -66,6 +71,8 @@ public class CartoPlayer : MonoBehaviour
         anim = GetComponentInChildren<Animator>();
         if (anim != null) anim.applyRootMotion = false;
         CartoMount.ApplyOutfit(transform, outfitPieces);
+        breath = GetComponent<CartoBreath>();
+        if (breath == null) breath = gameObject.AddComponent<CartoBreath>();   // escenas sin regenerar
 
         health.team = 0;
         health.maxHealth = CartoGameState.maxHealth;
@@ -299,6 +306,7 @@ public class CartoPlayer : MonoBehaviour
         rollUntil = 0f;
         CancelAttack();
         ResetUpperBody();
+        if (breath != null) breath.enabled = true;
         animMove = Vector2.zero;
         safeUntil = Time.time + 2f;
         Teleport(pos);
@@ -519,6 +527,7 @@ public class CartoPlayer : MonoBehaviour
         dead = true;
         CancelAttack();
         ResetUpperBody();
+        if (breath != null) breath.enabled = false;
         Play("Death");
         if (anim != null) anim.SetFloat("Speed", 0f);
         if (CartoGame.Instance != null) CartoGame.Instance.OnPlayerDied();

@@ -40,6 +40,8 @@ public static class CartoGameBuilder
 
         missing.Clear();
         mats.Clear();
+        softDot = null;
+        particleMat = null;
         rng = new System.Random(7);
         bool pipelineChanged = EnsureBuiltInPipeline();
         ConfigurePlayer();
@@ -230,6 +232,113 @@ public static class CartoGameBuilder
         AssetDatabase.CreateAsset(m, path);
         mats[name] = m;
         return m;
+    }
+
+    static Texture2D softDot;
+    static Material particleMat;
+
+    /// <summary>
+    /// Punto de luz difuminado para las particulas. Se dibuja aqui pixel a pixel y se guarda en
+    /// Generated: no hace falta importar ninguna textura.
+    /// </summary>
+    static Texture2D SoftDot()
+    {
+        if (softDot != null) return softDot;
+        string path = Gen + "/Carto_Destello.asset";
+        AssetDatabase.DeleteAsset(path);
+        const int n = 64;
+        Texture2D t = new Texture2D(n, n, TextureFormat.RGBA32, true);
+        t.wrapMode = TextureWrapMode.Clamp;
+        Color[] px = new Color[n * n];
+        float half = (n - 1) * 0.5f;
+        for (int y = 0; y < n; y++)
+        {
+            for (int x = 0; x < n; x++)
+            {
+                float d = Mathf.Sqrt((x - half) * (x - half) + (y - half) * (y - half)) / half;
+                float a = Mathf.Clamp01(1f - d);
+                a = a * a * (3f - 2f * a);
+                px[y * n + x] = new Color(1f, 1f, 1f, a * a);
+            }
+        }
+        t.SetPixels(px);
+        t.Apply(true);
+        AssetDatabase.CreateAsset(t, path);
+        softDot = t;
+        return t;
+    }
+
+    /// <summary>Material aditivo de las particulas (shader incluido en Unity, canal Built-in).</summary>
+    static Material ParticleMat()
+    {
+        if (particleMat != null) return particleMat;
+        string path = MatDir + "/Carto_Particula.mat";
+        AssetDatabase.DeleteAsset(path);
+        Shader sh = Shader.Find("Legacy Shaders/Particles/Additive");
+        if (sh == null) sh = Shader.Find("Mobile/Particles/Additive");
+        if (sh == null) sh = Shader.Find("Sprites/Default");
+        Material m = new Material(sh);
+        m.mainTexture = SoftDot();
+        if (m.HasProperty("_TintColor")) m.SetColor("_TintColor", new Color(0.5f, 0.5f, 0.5f, 0.5f));
+        AssetDatabase.CreateAsset(m, path);
+        particleMat = m;
+        return m;
+    }
+
+    /// <summary>
+    /// Particulas de la biblia de arte: puntos de luz pequenos que flotan con una deriva suave.
+    /// Nacen dentro de una caja de tamano 'area' centrada en 'localPos', con un color entre 'a' y 'b',
+    /// y se mueven con la velocidad 'drift' (en el mundo) mas un vaiven 'wander'.
+    /// </summary>
+    static ParticleSystem Particles(Transform parent, string name, Vector3 localPos, Vector3 area, Color a, Color b,
+        float rate, float lifetime, float size, Vector3 drift, float wander)
+    {
+        GameObject go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        go.transform.localPosition = localPos;
+        ParticleSystem ps = go.AddComponent<ParticleSystem>();
+
+        ParticleSystem.MainModule main = ps.main;
+        main.loop = true;
+        main.playOnAwake = true;
+        main.prewarm = true;
+        main.startLifetime = new ParticleSystem.MinMaxCurve(lifetime * 0.6f, lifetime);
+        main.startSpeed = 0f;
+        main.startSize = new ParticleSystem.MinMaxCurve(size * 0.45f, size);
+        main.startColor = new ParticleSystem.MinMaxGradient(a, b);
+        main.simulationSpace = ParticleSystemSimulationSpace.World;
+        main.gravityModifier = 0f;
+        main.maxParticles = Mathf.CeilToInt(rate * lifetime * 1.3f) + 8;
+
+        ParticleSystem.EmissionModule emission = ps.emission;
+        emission.rateOverTime = rate;
+
+        ParticleSystem.ShapeModule shape = ps.shape;
+        shape.shapeType = ParticleSystemShapeType.Box;
+        shape.scale = area;
+
+        ParticleSystem.VelocityOverLifetimeModule vel = ps.velocityOverLifetime;
+        vel.enabled = true;
+        vel.space = ParticleSystemSimulationSpace.World;
+        vel.x = new ParticleSystem.MinMaxCurve(drift.x - wander, drift.x + wander);
+        vel.y = new ParticleSystem.MinMaxCurve(drift.y - wander * 0.5f, drift.y + wander * 0.5f);
+        vel.z = new ParticleSystem.MinMaxCurve(drift.z - wander, drift.z + wander);
+
+        // Aparecen y se apagan poco a poco.
+        ParticleSystem.ColorOverLifetimeModule col = ps.colorOverLifetime;
+        col.enabled = true;
+        Gradient g = new Gradient();
+        g.SetKeys(
+            new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+            new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.2f), new GradientAlphaKey(1f, 0.6f), new GradientAlphaKey(0f, 1f) });
+        col.color = new ParticleSystem.MinMaxGradient(g);
+
+        ParticleSystemRenderer r = go.GetComponent<ParticleSystemRenderer>();
+        r.sharedMaterial = ParticleMat();
+        r.renderMode = ParticleSystemRenderMode.Billboard;
+        r.shadowCastingMode = ShadowCastingMode.Off;
+        r.receiveShadows = false;
+        return ps;
     }
 
     // =====================================================================
@@ -636,7 +745,15 @@ public static class CartoGameBuilder
         h.current = 100f;
         h.displayName = "Cartografo";
         CartoPlayer player = root.AddComponent<CartoPlayer>();
-        CartoMount.ApplyOutfit(root.transform, player.outfitPieces);
+        CartoMount.ApplyOutfit(root.transform, player.outfitPieces);   // armadura de placas, sin casco
+        root.AddComponent<CartoBreath>();
+
+        // Aura del cartografo: motas de luz cian y oro que suben desde sus pies y un resplandor frio.
+        GameObject aura = new GameObject("Aura");
+        aura.transform.SetParent(root.transform, false);
+        Particles(aura.transform, "Motas", new Vector3(0f, 0.25f, 0f), new Vector3(0.9f, 0.3f, 0.9f),
+            CartoArt.Cyan, CartoArt.Gold, 8f, 1.9f, 0.13f, new Vector3(0f, 0.8f, 0f), 0.12f);
+        PointLight(aura.transform, new Vector3(0f, 1.3f, 0.3f), Color.Lerp(CartoArt.Cyan, Color.white, 0.35f), 4.5f, 0.9f);
     }
 
     static CartoEnemy SpawnEnemy(Transform parent, string prefabName, string hint, string display, Vector3 pos,
@@ -947,6 +1064,7 @@ public static class CartoGameBuilder
         npc.transform.position = new Vector3(3.6f, 0f, 10.4f);
         npc.transform.rotation = Quaternion.Euler(0f, 200f, 0f);
         CharacterModel("samurai_woman_v2", "Samurai", npc.transform, 1f, pink);
+        npc.AddComponent<CartoBreath>();
         CapsuleCollider npcCol = npc.AddComponent<CapsuleCollider>();
         npcCol.height = 1.8f;
         npcCol.radius = 0.4f;
