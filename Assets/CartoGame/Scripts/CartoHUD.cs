@@ -7,7 +7,9 @@ using UnityEngine;
 /// </summary>
 public class CartoHUD : MonoBehaviour
 {
-    public enum Overlay { None, Intro, Pause, Death, Victory, Cinematic }
+    public enum Overlay { None, Menu, Pause, Death, Victory, Cinematic }
+
+    enum Page { Root, Controls }   // dentro del menu principal y de la pausa
 
     struct Floater
     {
@@ -25,16 +27,21 @@ public class CartoHUD : MonoBehaviour
     static float flashUntil;
     static bool cursorFree;   // Ctrl: raton libre y camara quieta, sin pausar
     static float fadeStart = -10f;   // fundido desde negro al terminar una cinematica
+    static Page page = Page.Root;
+    static int selected;             // boton elegido en el menu abierto
+    static Vector2 lastMouse;
+    static int guardFrame = -10;     // fotograma en que se cerro un menu: ese clic no llega al juego
     static readonly List<Floater> floaters = new List<Floater>();
 
     GUIStyle style;
     float scale = 1f;
 
     public static bool OverlayActive { get { return overlay != Overlay.None; } }
-    public static bool Blocking { get { return overlay != Overlay.None || CartoShop.IsOpen; } }
+    public static bool Blocking { get { return overlay != Overlay.None || CartoShop.IsOpen || Time.frameCount <= guardFrame; } }
+    public static bool MenuOpen { get { return overlay == Overlay.Menu; } }
     public static bool CursorFree { get { return cursorFree; } }
     /// <summary>La pantalla actual tiene el juego detenido (Time.timeScale = 0).</summary>
-    public static bool PausesTime { get { return overlay == Overlay.Intro || overlay == Overlay.Pause || overlay == Overlay.Victory; } }
+    public static bool PausesTime { get { return overlay == Overlay.Pause || overlay == Overlay.Victory; } }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void DomainReset()
@@ -47,6 +54,9 @@ public class CartoHUD : MonoBehaviour
         flashUntil = 0f;
         cursorFree = false;
         fadeStart = -10f;
+        page = Page.Root;
+        selected = 0;
+        guardFrame = -10;
         floaters.Clear();
     }
 
@@ -87,19 +97,22 @@ public class CartoHUD : MonoBehaviour
 
     public static void ShowOverlay(Overlay o)
     {
+        if (overlay == Overlay.Menu || overlay == Overlay.Pause) guardFrame = Time.frameCount;
         overlay = o;
-        if (o == Overlay.Intro || o == Overlay.Pause || o == Overlay.Victory) Time.timeScale = 0f;
-        else Time.timeScale = 1f;
+        page = Page.Root;
+        selected = 0;
+        // La pausa y la victoria detienen el juego; el menu principal no (el Nexo sigue vivo detras).
+        Time.timeScale = PausesTime ? 0f : 1f;
         ApplyCursor();
     }
 
     /// <summary>
-    /// Unico sitio que decide el estado del raton: libre en pausa o si se libero con Ctrl;
-    /// bloqueado en el resto de casos. La camara solo gira con el raton bloqueado.
+    /// Unico sitio que decide el estado del raton: libre en los menus (principal y pausa) o si se
+    /// libero con Ctrl; bloqueado en el resto de casos. La camara solo gira con el raton bloqueado.
     /// </summary>
     static void ApplyCursor()
     {
-        bool free = overlay == Overlay.Pause || (overlay == Overlay.None && cursorFree);
+        bool free = overlay == Overlay.Menu || overlay == Overlay.Pause || (overlay == Overlay.None && cursorFree);
         Cursor.lockState = free ? CursorLockMode.None : CursorLockMode.Locked;
         Cursor.visible = free;
     }
@@ -111,11 +124,14 @@ public class CartoHUD : MonoBehaviour
         floaters.Clear();
         CartoShop.IsOpen = false;
         cursorFree = false;
-        if (overlay == Overlay.Pause || overlay == Overlay.Death || overlay == Overlay.Cinematic) overlay = Overlay.None;
+        if (overlay == Overlay.Menu || overlay == Overlay.Pause || overlay == Overlay.Death || overlay == Overlay.Cinematic)
+            overlay = Overlay.None;
     }
 
     void Update()
     {
+        if (CartoInput.FullscreenDown) CartoGame.ToggleFullscreen();
+
         switch (overlay)
         {
             case Overlay.None:
@@ -137,13 +153,8 @@ public class CartoHUD : MonoBehaviour
                 }
                 break;
 
-            case Overlay.Intro:
-                if (CartoInput.ConfirmDown)
-                {
-                    CartoGameState.introShown = true;
-                    ShowOverlay(Overlay.None);
-                    Toast("Nexo del Tiempo  —  Cruza un portal para viajar a una era", 5f);
-                }
+            case Overlay.Menu:
+                UpdateMenu();
                 break;
 
             case Overlay.Cinematic:
@@ -152,12 +163,8 @@ public class CartoHUD : MonoBehaviour
                 break;
 
             case Overlay.Pause:
-                if (CartoInput.PauseDown || CartoInput.ConfirmDown) ShowOverlay(Overlay.None);
-                else if (CartoInput.NewGameDown)
-                {
-                    ShowOverlay(Overlay.None);
-                    CartoGame.NewGame();
-                }
+                if (page == Page.Root && CartoInput.PauseDown) ShowOverlay(Overlay.None);
+                else UpdateMenu();
                 break;
 
             case Overlay.Death:
@@ -181,26 +188,150 @@ public class CartoHUD : MonoBehaviour
         }
     }
 
+    // ------------------------------------------------------------ menus (principal y pausa)
+
+    static readonly string[] MenuNewItems = { "Jugar", "Controles", "Salir" };
+    static readonly string[] MenuResumeItems = { "Continuar", "Nueva partida", "Controles", "Salir" };
+    static readonly string[] PauseItems = { "Continuar", "Controles", "Volver al menú", "Salir del juego" };
+    static readonly string[] BackItems = { "Volver" };
+
+    /// <summary>Botones de la pantalla abierta. Con una partida en curso el menu principal ofrece continuarla.</summary>
+    static string[] CurrentItems()
+    {
+        if (page == Page.Controls) return BackItems;
+        if (overlay == Overlay.Pause) return PauseItems;
+        return CartoGameState.introShown ? MenuResumeItems : MenuNewItems;
+    }
+
+    static float ControlsHeight { get { return 72f + ControlKeys.Length * 32f; } }   // en unidades de 1080p
+
+    static Rect ControlsBox(float W, float H, float s)
+    {
+        float w = Mathf.Min(840f * s, W - 80f * s);
+        return new Rect(W * 0.5f - w * 0.5f, H * 0.2f, w, ControlsHeight * s);
+    }
+
+    /// <summary>Columna de botones de la pausa (a su derecha va la coleccion de armas).</summary>
+    static Rect PauseColumn(float W, float H, float s)
+    {
+        float total = Mathf.Min(1520f * s, W - 60f * s);
+        return new Rect(W * 0.5f - total * 0.5f, H * 0.25f, Mathf.Min(440f * s, total * 0.4f), 424f * s);
+    }
+
+    /// <summary>Rectangulo en pantalla del boton i: lo comparten el dibujo (OnGUI) y el raton (Update).</summary>
+    static Rect ButtonRect(int i, int count)
+    {
+        float W = Screen.width, H = Screen.height;
+        float s = H / 1080f;
+        if (page == Page.Controls)
+        {
+            Rect box = ControlsBox(W, H, s);
+            return new Rect(W * 0.5f - 190f * s, box.yMax + 26f * s, 380f * s, 62f * s);
+        }
+        if (overlay == Overlay.Pause)
+        {
+            Rect col = PauseColumn(W, H, s);
+            return new Rect(col.x + 26f * s, col.y + 66f * s + i * 82f * s, col.width - 52f * s, 64f * s);
+        }
+        float bw = 470f * s, bh = 66f * s;
+        return new Rect(W * 0.5f - bw * 0.5f, H * 0.47f + i * (bh + 16f * s), bw, bh);
+    }
+
+    /// <summary>
+    /// Navegacion de los botones: W/S o flechas y Enter, o raton y clic. Devuelve el boton pulsado (o -1).
+    /// </summary>
+    int UpdateButtons(int count)
+    {
+        if (selected >= count) selected = 0;
+        if (CartoInput.MenuUpDown) selected = (selected + count - 1) % count;
+        if (CartoInput.MenuDownDown) selected = (selected + 1) % count;
+
+        Vector2 mouse = CartoInput.MousePosition;
+        mouse.y = Screen.height - mouse.y;   // IMGUI mide desde arriba
+        int hover = -1;
+        for (int i = 0; i < count; i++)
+            if (ButtonRect(i, count).Contains(mouse)) hover = i;
+        bool click = CartoInput.AttackDown;
+        // El raton solo elige al moverse o hacer clic, para no pelear con el teclado.
+        if (hover >= 0 && (click || (mouse - lastMouse).sqrMagnitude > 1f)) selected = hover;
+        lastMouse = mouse;
+
+        if (click && hover >= 0) return hover;
+        if (CartoInput.ConfirmDown) return selected;
+        return -1;
+    }
+
+    void UpdateMenu()
+    {
+        string[] items = CurrentItems();
+        int hit = UpdateButtons(items.Length);
+        if (page == Page.Controls)
+        {
+            if (hit >= 0 || CartoInput.PauseDown)
+            {
+                page = Page.Root;
+                selected = Mathf.Max(0, System.Array.IndexOf(CurrentItems(), "Controles"));
+            }
+            return;
+        }
+        if (hit < 0) return;
+
+        switch (items[hit])
+        {
+            case "Jugar":
+            case "Continuar":
+                if (overlay == Overlay.Pause)
+                {
+                    ShowOverlay(Overlay.None);
+                }
+                else
+                {
+                    CartoGameState.menuPending = false;
+                    ShowOverlay(Overlay.None);
+                    FadeFromBlack();
+                    if (CartoGame.Instance != null) CartoGame.Instance.BeginZone();
+                }
+                break;
+            case "Nueva partida":
+                ShowOverlay(Overlay.None);
+                CartoGame.NewGame();
+                break;
+            case "Controles":
+                page = Page.Controls;
+                selected = 0;
+                break;
+            case "Volver al menú":
+                ShowOverlay(Overlay.None);
+                CartoGame.BackToMenu();
+                break;
+            case "Salir":
+            case "Salir del juego":
+                CartoGame.Quit();
+                break;
+        }
+    }
+
     // ------------------------------------------------------------ dibujo
 
-    static readonly Color Cyan = new Color(0.6f, 0.95f, 1f);
-    static readonly Color Gold = new Color(1f, 0.85f, 0.3f);
-    static readonly Color Dim = new Color(1f, 1f, 1f, 0.78f);
+    static readonly Color Cyan = CartoArt.Cyan;
+    static readonly Color Gold = CartoArt.Gold;
+    static readonly Color Dim = CartoArt.A(CartoArt.Parchment, 0.78f);
     static readonly Color Panel = new Color(0f, 0f, 0f, 0.45f);        // fondo de los grupos del HUD
-    static readonly Color Card = new Color(1f, 1f, 1f, 0.07f);         // fondo de los paneles de menu
+    static readonly Color Card = CartoArt.A(CartoArt.Parchment, 0.07f);   // fondo de los paneles de menu
     static readonly GUIContent measure = new GUIContent();
 
-    // Controles (tecla, accion). Se dibujan como tabla en la pantalla inicial y en la pausa.
+    // Controles (tecla, accion). Se dibujan como tabla en el menu principal y en la pausa.
     static readonly string[] ControlKeys =
     {
         "WASD", "Ratón", "Shift", "Espacio", "Clic izquierdo", "Clic derecho",
-        "Q  /  R", "E", "1, 2, 3", "Ctrl", "Esc"
+        "Q  /  R", "E", "1, 2, 3", "Ctrl", "Esc", "Enter", "F11"
     };
     static readonly string[] ControlActions =
     {
-        "Moverse", "Cámara (rueda = zoom)", "Correr", "Esquivar", "Ataque cuerpo a cuerpo", "Ataque a distancia",
+        "Moverse (también mientras atacas)", "Cámara (rueda = zoom)", "Correr", "Esquivar (cancela el ataque)",
+        "Ataque cuerpo a cuerpo", "Ataque a distancia",
         "Cambiar arma cercana / a distancia", "Interactuar (portal, altar, cristal)", "Comprar mejoras en el altar",
-        "Liberar / bloquear cámara", "Pausa"
+        "Liberar / bloquear cámara", "Pausa", "Aceptar / saltar cinemática", "Pantalla completa / ventana"
     };
 
     void DrawRect(Rect r, Color c)
@@ -275,6 +406,11 @@ public class CartoHUD : MonoBehaviour
         if (overlay == Overlay.Cinematic)
         {
             DrawCinematic(W, H);
+            return;
+        }
+        if (overlay == Overlay.Menu)
+        {
+            DrawMenu(W, H);
             return;
         }
 
@@ -441,6 +577,70 @@ public class CartoHUD : MonoBehaviour
         Label(new Rect(box.x, box.yMax - 56 * s, box.width, 38 * s), "[E] o [Esc]  Cerrar", 23, Color.white, TextAnchor.MiddleCenter, false);
     }
 
+    void DrawButtons()
+    {
+        string[] items = CurrentItems();
+        for (int i = 0; i < items.Length; i++) DrawButton(ButtonRect(i, items.Length), items[i], i == selected);
+    }
+
+    /// <summary>Boton de menu: claro sobre el panel; el elegido (teclado o raton encima) crece y pasa a oro.</summary>
+    void DrawButton(Rect r, string text, bool chosen)
+    {
+        float s = scale;
+        if (chosen) r = new Rect(r.x - 10f * s, r.y - 2f * s, r.width + 20f * s, r.height + 4f * s);
+        float line = Mathf.Max(1f, 2f * s);
+        Color edge = chosen ? Gold : CartoArt.A(Cyan, 0.45f);
+        DrawRect(r, chosen ? CartoArt.A(Gold, 0.26f) : CartoArt.A(CartoArt.Parchment, 0.1f));
+        DrawRect(new Rect(r.x, r.y, r.width, line), edge);
+        DrawRect(new Rect(r.x, r.yMax - line, r.width, line), edge);
+        DrawRect(new Rect(r.x, r.y, 6f * s, r.height), chosen ? Gold : Cyan);
+        Label(r, text, chosen ? 31 : 28, chosen ? Gold : CartoArt.Parchment, TextAnchor.MiddleCenter, false);
+    }
+
+    /// <summary>Panel de menu de la biblia de arte: fondo de tinta y filete cian arriba.</summary>
+    void DrawPanel(Rect r, float alpha)
+    {
+        DrawRect(r, CartoArt.A(CartoArt.Ink, alpha));
+        DrawRect(new Rect(r.x, r.y, r.width, 4f * scale), Cyan);
+    }
+
+    /// <summary>Menu principal: titulo, botones y, en su pagina, la tabla de controles. El Nexo se ve detras.</summary>
+    void DrawMenu(float W, float H)
+    {
+        float s = scale;
+        Rect foot = new Rect(0, H * 0.9f, W, 44 * s);
+        DrawRect(new Rect(0, 0, W, H), CartoArt.A(CartoArt.Ink, page == Page.Controls ? 0.82f : 0.5f));
+        DrawRect(new Rect(0, 0, W, H * 0.34f), CartoArt.A(CartoArt.Ink, 0.4f));
+        DrawRect(new Rect(0, H * 0.84f, W, H * 0.16f), CartoArt.A(CartoArt.Ink, 0.5f));
+
+        if (page == Page.Controls)
+        {
+            Label(new Rect(0, H * 0.07f, W, 90 * s), "EL CARTÓGRAFO DEL TIEMPO", 54, Cyan, TextAnchor.MiddleCenter, false);
+            DrawControls(ControlsBox(W, H, s));
+            DrawButtons();
+            Label(foot, "Esc o Enter: volver", 21, Dim, TextAnchor.MiddleCenter, false);
+        }
+        else
+        {
+            float ty = H * 0.14f;
+            Label(new Rect(0, ty, W, 104 * s), "EL CARTÓGRAFO DEL TIEMPO", 80, Cyan, TextAnchor.MiddleCenter, false);
+            DrawRect(new Rect(W * 0.5f - 300 * s, ty + 112 * s, 600 * s, Mathf.Max(2f, 3f * s)), Gold);
+            Label(new Rect(0, ty + 126 * s, W, 44 * s), "Las eras se han mezclado. Recupera los cristales del tiempo.",
+                27, CartoArt.Parchment, TextAnchor.MiddleCenter, false);
+
+            string[] items = CurrentItems();
+            Rect first = ButtonRect(0, items.Length);
+            Rect last = ButtonRect(items.Length - 1, items.Length);
+            DrawPanel(new Rect(first.x - 34 * s, first.y - 34 * s, first.width + 68 * s, last.yMax - first.y + 68 * s), 0.8f);
+            DrawButtons();
+            Label(foot, "W / S o ratón: elegir          Enter o clic: aceptar          F11: pantalla completa",
+                21, Dim, TextAnchor.MiddleCenter, false);
+        }
+
+        float fade = 1f - (Time.unscaledTime - fadeStart) / 0.6f;
+        if (fade > 0f) DrawRect(new Rect(0, 0, W, H), new Color(0f, 0f, 0f, Mathf.Clamp01(fade)));
+    }
+
     /// <summary>Tabla de controles: tecla a la izquierda (dorado) y accion a la derecha.</summary>
     void DrawControls(Rect box)
     {
@@ -527,7 +727,7 @@ public class CartoHUD : MonoBehaviour
     void DrawOverlay(float W, float H)
     {
         float s = scale;
-        DrawRect(new Rect(0, 0, W, H), new Color(0.02f, 0.01f, 0.06f, overlay == Overlay.Death ? 0.66f : 0.86f));
+        DrawRect(new Rect(0, 0, W, H), CartoArt.A(CartoArt.Ink, overlay == Overlay.Death ? 0.7f : 0.88f));
         Rect title = new Rect(0, H * 0.07f, W, 90 * s);
         Rect foot = new Rect(0, H * 0.87f, W, 54 * s);
         float colW = Mathf.Min(1240f * s, W - 80f * s);            // columna de texto centrada
@@ -535,23 +735,6 @@ public class CartoHUD : MonoBehaviour
 
         switch (overlay)
         {
-            case Overlay.Intro:
-            {
-                Label(title, "EL CARTÓGRAFO DEL TIEMPO", 64, Cyan, TextAnchor.MiddleCenter, false);
-                Label(new Rect(body.x, H * 0.18f, body.width, 80 * s),
-                    "Un desastre temporal ha mezclado todas las eras. Tú, el último cartógrafo, debes viajar " +
-                    "a cada época y recuperar los cristales del tiempo.",
-                    25, Color.white, TextAnchor.UpperCenter);
-                float cw = Mathf.Min(760f * s, W - 80f * s);
-                DrawControls(new Rect(W * 0.5f - cw * 0.5f, H * 0.29f, cw, 424 * s));
-                Label(new Rect(body.x, H * 0.71f, body.width, 80 * s),
-                    "Derrota enemigos para ganar oro y experiencia, consigue las armas de cada era " +
-                    "y mejóralas en el Altar del Nexo.",
-                    23, Dim, TextAnchor.UpperCenter);
-                Label(foot, "Pulsa ENTER para comenzar", 32, Gold, TextAnchor.MiddleCenter, false);
-                break;
-            }
-
             case Overlay.Pause:
             {
                 Label(title, "PAUSA", 64, Cyan, TextAnchor.MiddleCenter, false);
@@ -559,15 +742,24 @@ public class CartoHUD : MonoBehaviour
                     "Nivel " + CartoGameState.level + "        Oro " + CartoGameState.gold +
                     "        Cristales " + CartoGameState.CrystalCount + " / 2        Enemigos derrotados " + CartoGameState.kills,
                     27, Gold, TextAnchor.MiddleCenter, false);
-                // Dos columnas: controles a la izquierda, coleccion de armas a la derecha.
+                if (page == Page.Controls)
+                {
+                    DrawControls(ControlsBox(W, H, s));
+                    DrawButtons();
+                    Label(foot, "Esc o Enter: volver", 21, Dim, TextAnchor.MiddleCenter, false);
+                    break;
+                }
+                // Dos columnas: botones a la izquierda, coleccion de armas a la derecha.
                 float total = Mathf.Min(1520f * s, W - 60f * s);
                 float gap = 30f * s;
-                float leftW = (total - gap) * 0.44f;
-                float x0 = W * 0.5f - total * 0.5f;
-                float y0 = H * 0.25f;
-                DrawControls(new Rect(x0, y0, leftW, 424 * s));
-                DrawCollection(new Rect(x0 + leftW + gap, y0, total - gap - leftW, 424 * s));
-                Label(foot, "ESC o ENTER  continuar          N  nueva partida", 29, Gold, TextAnchor.MiddleCenter, false);
+                Rect col = PauseColumn(W, H, s);
+                DrawRect(col, Card);
+                DrawRect(new Rect(col.x, col.y, col.width, 4 * s), Cyan);
+                Label(new Rect(col.x, col.y + 10 * s, col.width, 36 * s), "MENÚ", 26, Cyan, TextAnchor.MiddleCenter, false);
+                DrawButtons();
+                DrawCollection(new Rect(col.xMax + gap, col.y, total - col.width - gap, col.height));
+                Label(foot, "W / S o ratón: elegir          Enter o clic: aceptar          Esc: continuar",
+                    21, Dim, TextAnchor.MiddleCenter, false);
                 break;
             }
 

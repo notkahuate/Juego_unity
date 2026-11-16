@@ -52,6 +52,12 @@ public static class CartoInput
     public static bool ConfirmDown { get { return K != null && (K.enterKey.wasPressedThisFrame || K.numpadEnterKey.wasPressedThisFrame); } }
     public static bool NewGameDown { get { return K != null && K.nKey.wasPressedThisFrame; } }
     public static bool FreeCursorDown { get { return K != null && (K.leftCtrlKey.wasPressedThisFrame || K.rightCtrlKey.wasPressedThisFrame); } }
+    public static bool FullscreenDown { get { return K != null && K.f11Key.wasPressedThisFrame; } }
+    public static bool MenuUpDown { get { return K != null && (K.wKey.wasPressedThisFrame || K.upArrowKey.wasPressedThisFrame); } }
+    public static bool MenuDownDown { get { return K != null && (K.sKey.wasPressedThisFrame || K.downArrowKey.wasPressedThisFrame); } }
+
+    /// <summary>Posicion del raton en pixeles, con el origen abajo a la izquierda.</summary>
+    public static Vector2 MousePosition { get { return M == null ? Vector2.zero : M.position.ReadValue(); } }
 
     public static bool NumberDown(int n)
     {
@@ -100,6 +106,12 @@ public static class CartoInput
     public static bool ConfirmDown { get { return Input.GetKeyDown(KeyCode.Return) || Input.GetKeyDown(KeyCode.KeypadEnter); } }
     public static bool NewGameDown { get { return Input.GetKeyDown(KeyCode.N); } }
     public static bool FreeCursorDown { get { return Input.GetKeyDown(KeyCode.LeftControl) || Input.GetKeyDown(KeyCode.RightControl); } }
+    public static bool FullscreenDown { get { return Input.GetKeyDown(KeyCode.F11); } }
+    public static bool MenuUpDown { get { return Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow); } }
+    public static bool MenuDownDown { get { return Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow); } }
+
+    /// <summary>Posicion del raton en pixeles, con el origen abajo a la izquierda.</summary>
+    public static Vector2 MousePosition { get { return Input.mousePosition; } }
 
     public static bool NumberDown(int n)
     {

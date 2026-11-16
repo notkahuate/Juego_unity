@@ -42,6 +42,7 @@ public static class CartoGameBuilder
         mats.Clear();
         rng = new System.Random(7);
         bool pipelineChanged = EnsureBuiltInPipeline();
+        ConfigurePlayer();
         EnsureFolder(Gen);
         EnsureFolder(MatDir);
         EnsureFolder(SceneDir);
@@ -129,6 +130,19 @@ public static class CartoGameBuilder
             Debug.Log("CartoGame: se desactivo el Render Pipeline Asset; el proyecto usa ahora el Built-in Render Pipeline.");
         }
         return changed;
+    }
+
+    /// <summary>
+    /// Ajustes del Player para el ejecutable: arranca en pantalla completa a la resolucion del
+    /// monitor. En el juego, F11 alterna con una ventana de 1280x720 (CartoGame.ToggleFullscreen).
+    /// </summary>
+    static void ConfigurePlayer()
+    {
+        PlayerSettings.fullScreenMode = FullScreenMode.FullScreenWindow;
+        PlayerSettings.defaultIsNativeResolution = true;
+        PlayerSettings.defaultScreenWidth = 1280;
+        PlayerSettings.defaultScreenHeight = 720;
+        PlayerSettings.resizableWindow = true;
     }
 
     // =====================================================================

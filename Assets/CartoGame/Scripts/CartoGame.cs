@@ -17,6 +17,18 @@ public class CartoGame : MonoBehaviour
 
     public bool HasCheckpoint { get { return checkpoint != null; } }
 
+    /// <summary>
+    /// El ejecutable arranca siempre en pantalla completa, aunque la ultima vez se cerrara en
+    /// ventana (Unity recuerda el ultimo modo). F11 alterna despues.
+    /// </summary>
+    [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+    static void StartFullscreen()
+    {
+        if (Application.isEditor) return;
+        Resolution r = Screen.currentResolution;
+        Screen.SetResolution(r.width, r.height, FullScreenMode.FullScreenWindow);
+    }
+
     void Awake()
     {
         Instance = this;
@@ -44,6 +56,22 @@ public class CartoGame : MonoBehaviour
             }
         }
 
+        // Al iniciar el juego (o al volver desde la pausa) el Nexo abre con el menu principal;
+        // "Jugar" llama a BeginZone. Entrando directo a una era no hay menu.
+        if (zone == Zone.Hub && CartoGameState.menuPending)
+        {
+            CartoHUD.ShowOverlay(CartoHUD.Overlay.Menu);
+        }
+        else
+        {
+            CartoGameState.menuPending = false;
+            BeginZone();
+        }
+    }
+
+    /// <summary>Arranca la zona: historia inicial, victoria, presentacion de la era o solo su rotulo.</summary>
+    public void BeginZone()
+    {
         // Cinematica de historia (la crea el constructor; si la escena no la tiene, se omite).
         CartoCinematic cinematic = GetComponent<CartoCinematic>();
         bool hasCinematic = cinematic != null && cinematic.HasShots;
@@ -51,9 +79,9 @@ public class CartoGame : MonoBehaviour
 
         if (zone == Zone.Hub && !CartoGameState.introShown)
         {
-            // Inicio de la partida: historia y, al terminar o saltarla, la pantalla de controles.
-            if (hasCinematic) cinematic.Play(ShowIntroScreen);
-            else ShowIntroScreen();
+            // Inicio de la partida: la historia y, al terminar o saltarla, a jugar.
+            if (hasCinematic) cinematic.Play(EndIntro);
+            else EndIntro();
         }
         else if (zone == Zone.Hub && CartoGameState.AllCrystals && !CartoGameState.victoryShown)
         {
@@ -72,9 +100,11 @@ public class CartoGame : MonoBehaviour
         }
     }
 
-    void ShowIntroScreen()
+    void EndIntro()
     {
-        CartoHUD.ShowOverlay(CartoHUD.Overlay.Intro);
+        CartoGameState.introShown = true;
+        CartoHUD.ShowOverlay(CartoHUD.Overlay.None);
+        CartoHUD.Toast("Nexo del Tiempo  —  Cruza un portal para viajar a una era", 5f);
     }
 
     void EndEraIntro()
@@ -131,7 +161,46 @@ public class CartoGame : MonoBehaviour
     public static void NewGame()
     {
         CartoGameState.Reset();
+        CartoGameState.menuPending = false;
         Time.timeScale = 1f;
         SceneManager.LoadScene(CartoGameState.SceneHub);
+    }
+
+    /// <summary>Vuelve al menu principal (en el Nexo) conservando la partida en curso.</summary>
+    public static void BackToMenu()
+    {
+        CartoGameState.menuPending = true;
+        Time.timeScale = 1f;
+        SceneManager.LoadScene(CartoGameState.SceneHub);
+    }
+
+    /// <summary>Cierra el juego: en el ejecutable sale de la aplicacion; en el editor detiene Play.</summary>
+    public static void Quit()
+    {
+        Time.timeScale = 1f;
+#if UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false;
+#else
+        Application.Quit();
+#endif
+    }
+
+    /// <summary>F11: alterna entre pantalla completa (resolucion del monitor) y ventana de 1280x720.</summary>
+    public static void ToggleFullscreen()
+    {
+        if (Application.isEditor)
+        {
+            CartoHUD.Toast("F11: la pantalla completa solo cambia en el ejecutable", 2.5f);
+            return;
+        }
+        if (Screen.fullScreen)
+        {
+            Screen.SetResolution(1280, 720, FullScreenMode.Windowed);
+        }
+        else
+        {
+            Resolution r = Screen.currentResolution;
+            Screen.SetResolution(r.width, r.height, FullScreenMode.FullScreenWindow);
+        }
     }
 }

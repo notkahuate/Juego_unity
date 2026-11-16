@@ -30,6 +30,10 @@ public static class CartoGameState
     public static bool victoryShown;
     public static float playTime;
 
+    // El menu principal se muestra al llegar al Nexo. No lo toca Reset(): "Nueva partida" no vuelve
+    // a pasar por el menu; solo se reactiva con "Volver al menu".
+    public static bool menuPending = true;
+
     static CartoGameState()
     {
         Reset();
@@ -39,6 +43,7 @@ public static class CartoGameState
     static void DomainReset()
     {
         Reset();
+        menuPending = true;
     }
 
     public static void Reset()

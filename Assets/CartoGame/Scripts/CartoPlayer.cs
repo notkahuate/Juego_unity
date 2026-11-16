@@ -132,7 +132,7 @@ public class CartoPlayer : MonoBehaviour
             return;
         }
 
-        CartoGameState.playTime += Time.deltaTime;
+        if (!CartoHUD.OverlayActive) CartoGameState.playTime += Time.deltaTime;
         bool blocked = CartoHUD.Blocking;
         float now = Time.time;
         bool rolling = now < rollUntil;
