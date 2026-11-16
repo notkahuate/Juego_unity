@@ -41,6 +41,15 @@ public class CartoEnemy : MonoBehaviour
     bool aggro;
     Vector3 homePos;
     Quaternion homeRot;
+    Vector3 knock;                 // retroceso al recibir un golpe (se apaga solo)
+
+    // Destello al recibir dano: se aclara el color de sus materiales un instante (sin duplicarlos).
+    const float FlashTime = 0.14f;
+    Renderer[] flashRenderers;
+    Color[][] flashBase;
+    MaterialPropertyBlock flashBlock;
+    float flashUntil;
+    bool flashing;
 
     public bool IsDead { get { return state == State.Dead; } }
     public bool Aggro { get { return aggro; } }
@@ -82,6 +91,7 @@ public class CartoEnemy : MonoBehaviour
 
     void Update()
     {
+        if (flashing) UpdateFlash();
         if (state == State.Dead) return;
 
         CartoPlayer player = CartoPlayer.Instance;
@@ -144,9 +154,10 @@ public class CartoEnemy : MonoBehaviour
         {
             if (cc.isGrounded && vy < 0f) vy = -2f;
             vy += -25f * Time.deltaTime;
-            Vector3 v = move;
+            Vector3 v = move + knock;
             v.y = vy;
             cc.Move(v * Time.deltaTime);
+            knock = Vector3.Lerp(knock, Vector3.zero, 1f - Mathf.Exp(-14f * Time.deltaTime));
         }
 
         float targetAnim = move.sqrMagnitude > 0.05f ? (moveSpeed > 4.6f ? 1.6f : 1f) : 0f;
@@ -192,6 +203,7 @@ public class CartoEnemy : MonoBehaviour
         state = State.Idle;
         staggerUntil = 0f;
         vy = 0f;
+        knock = Vector3.zero;
         animSpeed = 0f;
         nextAttack = Time.time + Random.Range(0.2f, 0.8f);
         health.current = health.maxHealth;
@@ -229,6 +241,17 @@ public class CartoEnemy : MonoBehaviour
     {
         Alert();
         CartoHUD.AddFloater(transform.position + Vector3.up * (Height + 0.2f), Mathf.RoundToInt(amount).ToString(), new Color(1f, 0.9f, 0.3f));
+
+        // Sensacion de impacto: destello, congelado breve y temblor (mas fuerte si es el golpe final).
+        bool heavy = health.IsDead || health.isBoss;
+        StartFlash();
+        CartoFeel.HitStop(heavy ? 0.08f : 0.06f);
+        CartoFeel.Shake(heavy ? 0.11f : 0.07f, heavy ? 0.2f : 0.14f);
+
+        Vector3 push = transform.position - from;
+        push.y = 0f;
+        if (push.sqrMagnitude > 0.001f) knock = push.normalized * (health.isBoss ? 1.5f : 5.5f);
+
         if (health.IsDead) return;
         if (!health.isBoss)
         {
@@ -240,9 +263,77 @@ public class CartoEnemy : MonoBehaviour
                 nextAttack = Time.time + 0.5f;
             }
             Play("Hit");
-            Vector3 push = transform.position - from;
-            push.y = 0f;
-            if (cc.enabled && push.sqrMagnitude > 0.001f) cc.Move(push.normalized * 0.35f);
+        }
+    }
+
+    // ------------------------------------------------------------------ destello
+
+    void StartFlash()
+    {
+        if (flashRenderers == null)
+        {
+            // Se buscan aqui (y no en Awake) para incluir el arma, que se coloca en Start.
+            List<Renderer> list = new List<Renderer>();
+            Renderer[] all = GetComponentsInChildren<Renderer>();
+            for (int i = 0; i < all.Length; i++)
+                if (all[i] is SkinnedMeshRenderer || all[i] is MeshRenderer) list.Add(all[i]);
+            flashRenderers = list.ToArray();
+            flashBase = new Color[flashRenderers.Length][];
+            for (int i = 0; i < flashRenderers.Length; i++)
+            {
+                Material[] ms = flashRenderers[i].sharedMaterials;
+                flashBase[i] = new Color[ms.Length];
+                for (int j = 0; j < ms.Length; j++)
+                {
+                    Color c = Color.white;
+                    if (ms[j] != null)
+                    {
+                        if (ms[j].HasProperty("_Color")) c = ms[j].GetColor("_Color");
+                        else if (ms[j].HasProperty("_BaseColor")) c = ms[j].GetColor("_BaseColor");
+                    }
+                    flashBase[i][j] = c;
+                }
+            }
+            flashBlock = new MaterialPropertyBlock();
+        }
+        flashUntil = Time.unscaledTime + FlashTime;
+        flashing = true;
+        ApplyFlash(1f);
+    }
+
+    void UpdateFlash()
+    {
+        // En tiempo real: el destello se ve tambien durante el congelado del golpe.
+        float k = (flashUntil - Time.unscaledTime) / FlashTime;
+        if (k <= 0f)
+        {
+            flashing = false;
+            k = 0f;
+        }
+        ApplyFlash(k);
+    }
+
+    void ApplyFlash(float k)
+    {
+        for (int i = 0; i < flashRenderers.Length; i++)
+        {
+            Renderer r = flashRenderers[i];
+            if (r == null) continue;
+            for (int j = 0; j < flashBase[i].Length; j++)
+            {
+                if (k <= 0f)
+                {
+                    r.SetPropertyBlock(null, j);
+                    continue;
+                }
+                Color c = flashBase[i][j];
+                Color hot = Color.Lerp(c, new Color(2.2f, 2.15f, 2f, c.a), k);
+                flashBlock.Clear();
+                flashBlock.SetColor("_Color", hot);
+                flashBlock.SetColor("_BaseColor", hot);
+                flashBlock.SetColor("_EmissionColor", CartoArt.Parchment * (0.8f * k));
+                r.SetPropertyBlock(flashBlock, j);
+            }
         }
     }
 

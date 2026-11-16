@@ -52,7 +52,7 @@ public class CartoCamera : MonoBehaviour
         if (target < currentDistance) currentDistance = target;
         else currentDistance = Mathf.Lerp(currentDistance, target, 1f - Mathf.Exp(-8f * Time.unscaledDeltaTime));
 
-        transform.position = pivot + back * currentDistance;
+        transform.position = pivot + back * currentDistance + rot * CartoFeel.ShakeOffset;   // temblor de los golpes
         transform.rotation = rot;
     }
 

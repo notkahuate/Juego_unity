@@ -33,6 +33,8 @@ public class CartoHUD : MonoBehaviour
     public static bool OverlayActive { get { return overlay != Overlay.None; } }
     public static bool Blocking { get { return overlay != Overlay.None || CartoShop.IsOpen; } }
     public static bool CursorFree { get { return cursorFree; } }
+    /// <summary>La pantalla actual tiene el juego detenido (Time.timeScale = 0).</summary>
+    public static bool PausesTime { get { return overlay == Overlay.Intro || overlay == Overlay.Pause || overlay == Overlay.Victory; } }
 
     [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
     static void DomainReset()

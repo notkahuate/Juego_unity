@@ -180,12 +180,12 @@ public static class CartoGameBuilder
         return best == null ? null : AssetDatabase.LoadAssetAtPath<GameObject>(best);
     }
 
-    static AnimationClip FindClip(string name)
+    static AnimationClip FindClip(string name, bool optional = false)
     {
         AnimationClip found = FindClipIn(AssetDatabase.FindAssets(name + " t:AnimationClip"), name);
         if (found == null) found = FindClipIn(AssetDatabase.FindAssets(name + " t:Model"), name);
         if (found == null) found = FindClipIn(AssetDatabase.FindAssets("t:AnimationClip"), name);
-        if (found == null) AddMissing("Animacion " + name);
+        if (found == null && !optional) AddMissing("Animacion " + name);
         return found;
     }
 
@@ -228,19 +228,29 @@ public static class CartoGameBuilder
         AssetDatabase.DeleteAsset(path);
         AnimatorController ctrl = AnimatorController.CreateAnimatorControllerAtPath(path);
         ctrl.AddParameter("Speed", AnimatorControllerParameterType.Float);
+        ctrl.AddParameter("Strafe", AnimatorControllerParameterType.Float);
         AnimatorStateMachine sm = ctrl.layers[0].stateMachine;
 
+        // Locomocion en dos ejes: Speed = avance (0 quieto, 1 correr, 1.6 sprint, -1 hacia atras) y
+        // Strafe = lateral. Los enemigos solo usan Speed (Strafe se queda en 0), igual que antes; el
+        // cartografo usa Strafe para correr de lado mientras ataca mirando a su objetivo.
         BlendTree tree;
         AnimatorState loco = ctrl.CreateBlendTreeInController("Locomotion", out tree, 0);
-        tree.blendType = BlendTreeType.Simple1D;
-        tree.blendParameter = "Speed";
-        tree.useAutomaticThresholds = false;
+        tree.blendType = BlendTreeType.FreeformCartesian2D;
+        tree.blendParameter = "Strafe";
+        tree.blendParameterY = "Speed";
         AnimationClip idle = FindClip("Idle");
         AnimationClip run = FindClip("RunForward");
         AnimationClip sprint = FindClip("Sprint");
-        if (idle != null) tree.AddChild(idle, 0f);
-        if (run != null) tree.AddChild(run, 1f);
-        if (sprint != null) tree.AddChild(sprint, 1.6f);
+        AnimationClip back = FindClip("RunBackward", true);
+        AnimationClip left = FindClip("RunLeft", true);
+        AnimationClip right = FindClip("RunRight", true);
+        if (idle != null) tree.AddChild(idle, new Vector2(0f, 0f));
+        if (run != null) tree.AddChild(run, new Vector2(0f, 1f));
+        if (sprint != null) tree.AddChild(sprint, new Vector2(0f, 1.6f));
+        if (back != null) tree.AddChild(back, new Vector2(0f, -1f));
+        if (left != null) tree.AddChild(left, new Vector2(-1f, 0f));
+        if (right != null) tree.AddChild(right, new Vector2(1f, 0f));
         sm.defaultState = loco;
 
         AnimationClip oneHanded = FindClip("MeleeAttack_OneHanded");
@@ -264,8 +274,47 @@ public static class CartoGameBuilder
         OneShot(sm, loco, "Roll", FindClip("RollForward"), 0.6f, true);
         OneShot(sm, loco, "Death", FindClip("Death"), 1.6f, false);
 
+        // Capa "UpperBody": los mismos ataques, pero solo sobre torso y brazos (AvatarMask), para que
+        // las piernas sigan con la locomocion de la capa base. Nace con peso 0: CartoPlayer lo sube
+        // mientras ataca; los enemigos no la usan y se animan a cuerpo entero como siempre.
+        ctrl.AddLayer("UpperBody");
+        AnimatorControllerLayer[] layers = ctrl.layers;
+        layers[1].avatarMask = BuildUpperBodyMask();
+        layers[1].defaultWeight = 0f;
+        layers[1].blendingMode = AnimatorLayerBlendingMode.Override;
+        ctrl.layers = layers;
+        AnimatorStateMachine up = ctrl.layers[1].stateMachine;
+        AnimatorState rest = up.AddState("Empty");   // sin clip: deja pasar la capa base
+        up.defaultState = rest;
+        OneShot(up, rest, "Attack1H", oneHanded, 0.7f, true);
+        OneShot(up, rest, "Attack2H", twoHanded, 0.9f, true);
+        OneShot(up, rest, "Shoot", thrust, 0.5f, true);
+        OneShot(up, rest, "Atk_Cartografo", thrust, 0.5f, true);
+        OneShot(up, rest, "Atk_Pirata", oneHanded, 0.6f, true);
+        OneShot(up, rest, "Atk_Samurai", twoHanded, 0.85f, true);
+        OneShot(up, rest, "Shoot_Pirata", thrust, 0.5f, true);
+        OneShot(up, rest, "Shoot_Samurai", thrust, 0.32f, true);
+
         EditorUtility.SetDirty(ctrl);
         return ctrl;
+    }
+
+    /// <summary>Mascara de torso, cabeza y brazos (sin piernas ni raiz) para la capa "UpperBody".</summary>
+    static AvatarMask BuildUpperBodyMask()
+    {
+        string path = Gen + "/CartoUpperBody.mask";
+        AssetDatabase.DeleteAsset(path);
+        AvatarMask mask = new AvatarMask();
+        for (int i = 0; i < (int)AvatarMaskBodyPart.LastBodyPart; i++)
+            mask.SetHumanoidBodyPartActive((AvatarMaskBodyPart)i, false);
+        mask.SetHumanoidBodyPartActive(AvatarMaskBodyPart.Body, true);
+        mask.SetHumanoidBodyPartActive(AvatarMaskBodyPart.Head, true);
+        mask.SetHumanoidBodyPartActive(AvatarMaskBodyPart.LeftArm, true);
+        mask.SetHumanoidBodyPartActive(AvatarMaskBodyPart.RightArm, true);
+        mask.SetHumanoidBodyPartActive(AvatarMaskBodyPart.LeftFingers, true);
+        mask.SetHumanoidBodyPartActive(AvatarMaskBodyPart.RightFingers, true);
+        AssetDatabase.CreateAsset(mask, path);
+        return mask;
     }
 
     static void OneShot(AnimatorStateMachine sm, AnimatorState loco, string name, AnimationClip clip, float duration, bool returns)
