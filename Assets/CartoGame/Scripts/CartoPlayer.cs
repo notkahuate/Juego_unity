@@ -519,7 +519,7 @@ public class CartoPlayer : MonoBehaviour
     {
         CartoHUD.DamageFlash();
         CartoFeel.Shake(0.13f, 0.22f);
-        CartoHUD.AddFloater(transform.position + Vector3.up * Height, "-" + Mathf.RoundToInt(amount), new Color(1f, 0.35f, 0.3f));
+        CartoHUD.AddFloater(transform.position + Vector3.up * Height, "-" + Mathf.RoundToInt(amount), CartoArt.Crimson, 1.2f);
     }
 
     void OnDied()

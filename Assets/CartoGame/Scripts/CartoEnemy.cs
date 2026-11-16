@@ -240,10 +240,10 @@ public class CartoEnemy : MonoBehaviour
     void OnDamaged(float amount, Vector3 from)
     {
         Alert();
-        CartoHUD.AddFloater(transform.position + Vector3.up * (Height + 0.2f), Mathf.RoundToInt(amount).ToString(), new Color(1f, 0.9f, 0.3f));
-
         // Sensacion de impacto: destello, congelado breve y temblor (mas fuerte si es el golpe final).
         bool heavy = health.IsDead || health.isBoss;
+        CartoHUD.AddFloater(transform.position + Vector3.up * (Height + 0.2f), Mathf.RoundToInt(amount).ToString(),
+            health.IsDead ? CartoArt.Gold : CartoArt.Parchment, health.IsDead ? 1.35f : 1.1f);
         StartFlash();
         CartoFeel.HitStop(heavy ? 0.08f : 0.06f);
         CartoFeel.Shake(heavy ? 0.11f : 0.07f, heavy ? 0.2f : 0.14f);
@@ -358,7 +358,7 @@ public class CartoEnemy : MonoBehaviour
 
         CartoGameState.kills++;
         bool leveled = CartoGameState.AddXp(xp);
-        CartoHUD.AddFloater(transform.position + Vector3.up * (Height + 0.7f), "+" + xp + " XP", new Color(0.5f, 0.8f, 1f));
+        CartoHUD.AddFloater(transform.position + Vector3.up * (Height + 0.7f), "+" + xp + " XP", CartoArt.Cyan, 0.85f);
         if (leveled) CartoHUD.Toast("¡Nivel " + CartoGameState.level + "! Vida máxima y daño aumentados", 3f);
         if (health.isBoss) CartoHUD.Toast("¡" + health.displayName + " ha caído! El cristal está libre", 4f);
 

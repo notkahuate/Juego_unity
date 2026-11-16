@@ -79,7 +79,7 @@ public class CartoLoot : MonoBehaviour
         else
         {
             player.health.Heal(value);
-            CartoHUD.AddFloater(player.transform.position + Vector3.up * 2f, "+" + value + " vida", new Color(0.4f, 1f, 0.5f));
+            CartoHUD.AddFloater(player.transform.position + Vector3.up * 2f, "+" + value + " vida", CartoArt.Parchment, 0.9f);
         }
         Destroy(gameObject);
     }
