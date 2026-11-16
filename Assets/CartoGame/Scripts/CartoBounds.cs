@@ -4,6 +4,7 @@ using UnityEngine;
 /// Limite del area jugable de una escena. El constructor lo crea junto a los muros invisibles
 /// (objeto "Limites"): avisa en pantalla cuando el cartografo se acerca al borde y, si por lo que
 /// sea llegara a salirse, lo devuelve dentro.
+/// Los muros los crea CartoGameBuilder (LimitCircle en el Nexo, LimitRect en las eras).
 /// </summary>
 public class CartoBounds : MonoBehaviour
 {
