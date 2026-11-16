@@ -973,6 +973,17 @@ public static class CartoGameBuilder
         return s;
     }
 
+    /// <summary>Tarjeta de cinematica: pantalla en negro con una frase en el centro (y glitch si se pide).</summary>
+    static CartoShot Card(float seconds, string text, float glitch)
+    {
+        CartoShot s = new CartoShot();
+        s.card = true;
+        s.seconds = seconds;
+        s.text = text;
+        s.glitch = glitch;
+        return s;
+    }
+
     /// <summary>
     /// Cinematica de historia de la escena: planos de camara con texto narrativo, guardados en
     /// "_CartoGame". Hay que llamarlo despues de SetupCommon.
@@ -1337,18 +1348,51 @@ public static class CartoGameBuilder
         SetupCommon(CartoGame.Zone.Hub, "Nexo del Tiempo", "Cruza un portal, recupera los cristales y mejora tus armas en el altar",
             spawn, 0f, false, voidColor);
 
-        // Intro de historia: vista general, la grieta, los dos portales y el cartografo.
+        // Intro de historia (unos 58 s, se salta con Enter): el desastre temporal, las eras rotas,
+        // los cristales y la mision, con tarjetas en negro, glitches y camara lenta hacia los portales.
+        CartoShot wide = Shot(new Vector3(0f, 36f, -66f), new Vector3(0f, 25f, -47f), new Vector3(0f, 5f, 4f), 8f,
+            "Cada era en su lugar. Cada camino, trazado por los cartógrafos desde el Nexo del Tiempo.");
+        wide.fov = 62f;
+        wide.fovEnd = 54f;
+
+        CartoShot tear = Shot(new Vector3(-14f, 6f, -10f), new Vector3(-9f, 9f, -5f), new Vector3(0f, 17f, 8f), 7.5f,
+            "Hasta que algo lo desgarró. Una grieta devoró los mapas... y el tiempo empezó a romperse.");
+        tear.glitch = 1.4f;
+
+        CartoShot toPirate = Shot(new Vector3(-3.5f, 2.6f, 0.6f), new Vector3(-10.1f, 2.2f, 0.2f), new Vector3(-16f, 2.3f, 0f), 7.5f,
+            "Un cristal del tiempo cayó en la Era Pirata, bajo la bandera del Capitán Marea Negra...");
+        toPirate.fov = 56f;
+        toPirate.fovEnd = 42f;
+        toPirate.worldSpeed = 0.5f;
+
+        CartoShot toSamurai = Shot(new Vector3(3.5f, 2.6f, -0.6f), new Vector3(10.1f, 2.2f, -0.2f), new Vector3(16f, 2.3f, 0f), 7.5f,
+            "...y otro en la Era Samurái, en el dojo de Akudaikan, Señor de la Guerra.");
+        toSamurai.fov = 56f;
+        toSamurai.fovEnd = 42f;
+        toSamurai.worldSpeed = 0.5f;
+
+        CartoShot empty = Shot(new Vector3(-6.5f, 2.4f, 3.5f), new Vector3(6.5f, 2.6f, 3.5f), new Vector3(0f, 1.6f, 11f), 6.5f,
+            "Sin ellos, el Nexo se apaga. Y cuando se apague, no quedará ningún ayer al que volver.");
+
+        // Cierre: la camara sube despacio desde el suelo hasta la cara del cartografo.
+        CartoShot hero = Shot(new Vector3(1.4f, 0.45f, -10.3f), new Vector3(0.7f, 1.75f, -10.8f), new Vector3(0f, 0.7f, -13f), 9f,
+            "El último Cartógrafo del Tiempo. Cruza los portales, recupera los cristales y devuelve cada era a su lugar.");
+        hero.moveLook = true;
+        hero.lookAtEnd = new Vector3(0f, 1.55f, -13f);
+        hero.fov = 44f;
+        hero.fovEnd = 36f;
+        hero.title = "EL CARTÓGRAFO DEL TIEMPO";
+
         AddCinematic(
-            Shot(new Vector3(0f, 30f, -50f), new Vector3(0f, 22f, -40f), new Vector3(0f, 5f, 4f), 5f,
-                "El tiempo era un mapa perfecto: cada era en su lugar, cada camino trazado."),
-            Shot(new Vector3(-15f, 8f, -9f), new Vector3(-9f, 11f, -4f), new Vector3(0f, 17f, 8f), 5f,
-                "Hasta que una grieta lo desgarró y mezcló todas las épocas."),
-            Shot(new Vector3(-3f, 3.2f, -5f), new Vector3(-7.5f, 2.8f, -1.5f), new Vector3(-16f, 2.4f, 0f), 5f,
-                "Los cristales que sostenían el tiempo quedaron atrapados lejos de aquí: uno en la Era Pirata..."),
-            Shot(new Vector3(3f, 3.2f, -5f), new Vector3(7.5f, 2.8f, -1.5f), new Vector3(16f, 2.4f, 0f), 5f,
-                "...y otro en la Era Samurái, en manos de quienes ahora los reclaman."),
-            Shot(new Vector3(2.5f, 3.2f, -5f), new Vector3(1.2f, 2.2f, -9.5f), new Vector3(0f, 1.35f, -13f), 6f,
-                "Solo queda un Cartógrafo del Tiempo. Cruza los portales, recupera los cristales y devuelve cada era a su lugar."));
+            Card(4.5f, "Dicen que el tiempo es un mapa.", 0f),
+            wide,
+            tear,
+            Card(4f, "Las eras se mezclaron.", 0.9f),
+            toPirate,
+            toSamurai,
+            empty,
+            Card(3.5f, "Solo queda uno.", 0.7f),
+            hero);
         SaveScene(scene, HubPath);
     }
 

@@ -802,23 +802,120 @@ public class CartoHUD : MonoBehaviour
         if (fade > 0f) DrawRect(new Rect(0, 0, W, H), new Color(0f, 0f, 0f, Mathf.Clamp01(fade)));
     }
 
-    /// <summary>Cinematica: bandas negras, texto narrativo abajo y fundidos entre planos. Sin HUD.</summary>
+    /// <summary>
+    /// Cinematica (sin HUD): barras de cine que entran al empezar, fundidos a negro, texto que se
+    /// escribe letra por letra (abajo, o centrado en las tarjetas en negro), glitch temporal y rotulo.
+    /// </summary>
     void DrawCinematic(float W, float H)
     {
         float s = scale;
         CartoCinematic c = CartoCinematic.Active;
         float black = c != null ? c.Blackness : 1f;
+        float glitch = c != null ? c.Glitch : 0f;
         if (black > 0f) DrawRect(new Rect(0, 0, W, H), new Color(0f, 0f, 0f, black));
-        float top = H * 0.09f, bottom = H * 0.21f;
+        if (glitch > 0.01f) DrawGlitch(W, H, glitch);
+
+        float bars = c != null ? c.Letterbox : 1f;
+        float top = H * 0.1f * bars, bottom = H * 0.2f * bars;
         DrawRect(new Rect(0, 0, W, top), Color.black);
         DrawRect(new Rect(0, H - bottom, W, bottom), Color.black);
+
         if (c != null)
         {
-            float colW = Mathf.Min(1300f * s, W - 80f * s);
-            Label(new Rect(W * 0.5f - colW * 0.5f, H - bottom + 26 * s, colW, bottom - 70 * s), c.Caption, 30,
-                new Color(1f, 1f, 1f, 1f - black), TextAnchor.UpperCenter);
+            float alpha = c.TextAlpha;
+            // Con glitch el texto tiembla de lado.
+            float jx = glitch > 0f ? (CartoCinematic.Hash(Mathf.FloorToInt(Time.unscaledTime * 20f) + 5) - 0.5f) * 16f * s * glitch : 0f;
+            if (c.IsCard)
+            {
+                // Tarjeta: una frase en el centro del negro, con cursor mientras se escribe.
+                bool cursor = c.Typing || Mathf.FloorToInt(Time.unscaledTime * 2.5f) % 2 == 0;
+                float tw = Mathf.Min(TextWidth(c.Caption, 44), W - 120f * s);
+                Rect r = new Rect(W * 0.5f - tw * 0.5f + jx, H * 0.44f, tw + 60f * s, 70f * s);
+                GlitchLabel(r, c.CaptionTyped + (cursor ? "_" : ""), 44, CartoArt.A(CartoArt.Parchment, alpha), TextAnchor.MiddleLeft, false, glitch);
+            }
+            else
+            {
+                // Texto narrativo en la barra de abajo. Alineado a la izquierda: al escribirse no baila.
+                float colW = Mathf.Min(1300f * s, W - 80f * s);
+                Rect r = new Rect(W * 0.5f - colW * 0.5f + jx, H - H * 0.2f + 24f * s, colW, H * 0.2f - 60f * s);
+                GlitchLabel(r, c.CaptionTyped, 29, CartoArt.A(CartoArt.Parchment, alpha * (1f - black)), TextAnchor.UpperLeft, true, glitch);
+            }
+
+            // Rotulo del cierre
+            float ta = c.TitleAlpha;
+            if (ta > 0f)
+            {
+                float ty = H * 0.15f;
+                Label(new Rect(0, ty, W, 110f * s), c.Title, 80, CartoArt.A(Cyan, ta), TextAnchor.MiddleCenter, false);
+                float lw = 660f * s * ta;
+                DrawRect(new Rect(W * 0.5f - lw * 0.5f, ty + 118f * s, lw, Mathf.Max(2f, 3f * s)), CartoArt.A(Gold, ta));
+            }
         }
-        Label(new Rect(W - 340 * s, H - 48 * s, 320 * s, 36 * s), "ENTER  saltar", 20, Dim, TextAnchor.MiddleRight, false);
+        Label(new Rect(W - 340 * s, H - 48 * s, 320 * s, 36 * s), "ENTER  saltar", 20, CartoArt.A(CartoArt.Parchment, 0.6f * bars), TextAnchor.MiddleRight, false);
+    }
+
+    /// <summary>Texto que, con glitch, se desdobla en cian y magenta a los lados.</summary>
+    void GlitchLabel(Rect r, string text, float size, Color color, TextAnchor anchor, bool wrap, float glitch)
+    {
+        if (glitch > 0.05f)
+        {
+            float d = (2f + 7f * glitch) * scale;
+            Label(new Rect(r.x - d, r.y, r.width, r.height), text, size, CartoArt.A(CartoArt.Cyan, 0.65f * color.a), anchor, wrap);
+            Label(new Rect(r.x + d, r.y, r.width, r.height), text, size, CartoArt.A(CartoArt.Magenta, 0.65f * color.a), anchor, wrap);
+        }
+        Label(r, text, size, color, anchor, wrap);
+    }
+
+    static Texture2D scanlines;
+
+    /// <summary>
+    /// Glitch temporal: lineas de barrido, franjas de color que saltan de sitio, cortes en negro y un
+    /// velo de color. Cambia a saltos (no cada fotograma) para que parezca una senal rota.
+    /// </summary>
+    void DrawGlitch(float W, float H, float amount)
+    {
+        float s = scale;
+        if (scanlines == null)
+        {
+            scanlines = new Texture2D(1, 4, TextureFormat.RGBA32, false);
+            scanlines.hideFlags = HideFlags.HideAndDontSave;
+            scanlines.wrapMode = TextureWrapMode.Repeat;
+            scanlines.filterMode = FilterMode.Point;
+            scanlines.SetPixels(new[] { new Color(1f, 1f, 1f, 1f), new Color(1f, 1f, 1f, 0.3f), new Color(1f, 1f, 1f, 0f), new Color(1f, 1f, 1f, 0f) });
+            scanlines.Apply(false);
+        }
+        Color old = GUI.color;
+        GUI.color = new Color(0f, 0f, 0f, 0.5f * amount);
+        GUI.DrawTextureWithTexCoords(new Rect(0, 0, W, H), scanlines, new Rect(0f, 0f, 1f, H / 4f));
+        GUI.color = old;
+
+        int step = Mathf.FloorToInt(Time.unscaledTime * 22f) * 131;
+        // Velo de color en toda la pantalla
+        DrawRect(new Rect(0, 0, W, H), CartoArt.A(CartoCinematic.Hash(step) > 0.5f ? CartoArt.Cyan : CartoArt.Magenta, 0.09f * amount));
+
+        // Franjas horizontales
+        int strips = 4 + Mathf.RoundToInt(amount * 11f);
+        for (int i = 0; i < strips; i++)
+        {
+            float a = CartoCinematic.Hash(step + i * 7 + 1);
+            float b = CartoCinematic.Hash(step + i * 7 + 2);
+            float c = CartoCinematic.Hash(step + i * 7 + 3);
+            float d = CartoCinematic.Hash(step + i * 7 + 4);
+            float h = (2f + b * b * 46f) * s;
+            float w = W * (0.25f + c * 0.75f);
+            float x = (W - w) * d;
+            Color col = a < 0.4f ? CartoArt.Cyan : (a < 0.75f ? CartoArt.Magenta : (a < 0.9f ? CartoArt.Parchment : Color.black));
+            DrawRect(new Rect(x, CartoCinematic.Hash(step + i * 7 + 5) * H, w, h), CartoArt.A(col, (0.12f + c * 0.5f) * amount));
+        }
+
+        // De vez en cuando, un corte: una banda entera se queda en negro
+        if (CartoCinematic.Hash(step + 977) < 0.35f * amount)
+        {
+            float y = CartoCinematic.Hash(step + 978) * H * 0.85f;
+            DrawRect(new Rect(0, y, W, H * (0.03f + 0.09f * CartoCinematic.Hash(step + 979))), new Color(0f, 0f, 0f, 0.85f));
+        }
+        // Y un destello blanco justo al estallar
+        if (amount > 0.85f) DrawRect(new Rect(0, 0, W, H), CartoArt.A(CartoArt.Parchment, (amount - 0.85f) * 2.2f));
     }
 
     void DrawWorld(float W, float H)
