@@ -646,6 +646,18 @@ public static class CartoGameBuilder
         l.shadows = LightShadows.Soft;
     }
 
+    /// <summary>Luz de relleno: direccional sin sombras, para aclarar el lado que el sol deja oscuro.</summary>
+    static void FillLight(Vector3 euler, Color color, float intensity)
+    {
+        GameObject go = new GameObject("LuzDeRelleno");
+        go.transform.rotation = Quaternion.Euler(euler);
+        Light l = go.AddComponent<Light>();
+        l.type = LightType.Directional;
+        l.color = color;
+        l.intensity = intensity;
+        l.shadows = LightShadows.None;
+    }
+
     static void Ambient(Color sky, Color equator, Color groundColor, Color fog, float fogStart, float fogEnd)
     {
         RenderSettings.ambientMode = AmbientMode.Trilight;
@@ -882,15 +894,34 @@ public static class CartoGameBuilder
         root.transform.SetParent(parent, false);
         root.transform.position = pos;
         root.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+        Prim(PrimitiveType.Cube, "Umbral", root.transform, new Vector3(0f, 0.08f, 0f), new Vector3(5.6f, 0.16f, 2.2f), frame, false);
         Prim(PrimitiveType.Cube, "PilarIzq", root.transform, new Vector3(-1.8f, 2.1f, 0f), new Vector3(0.7f, 4.2f, 0.7f), frame);
         Prim(PrimitiveType.Cube, "PilarDer", root.transform, new Vector3(1.8f, 2.1f, 0f), new Vector3(0.7f, 4.2f, 0.7f), frame);
         Prim(PrimitiveType.Cube, "Dintel", root.transform, new Vector3(0f, 4.45f, 0f), new Vector3(5f, 0.55f, 0.9f), frame);
+        Prim(PrimitiveType.Cube, "Remate", root.transform, new Vector3(0f, 4.9f, 0f), new Vector3(3.2f, 0.35f, 0.7f), frame, false);
+        // Runas de luz en las dos caras de cada pilar y sobre el dintel
+        for (int side = -1; side <= 1; side += 2)
+        {
+            Prim(PrimitiveType.Cube, "Runa", root.transform, new Vector3(side * 1.8f, 2.1f, 0.36f), new Vector3(0.16f, 3.2f, 0.05f), glow, false);
+            Prim(PrimitiveType.Cube, "Runa", root.transform, new Vector3(side * 1.8f, 2.1f, -0.36f), new Vector3(0.16f, 3.2f, 0.05f), glow, false);
+            Prim(PrimitiveType.Cube, "Gema", root.transform, new Vector3(side * 2.1f, 5f, 0f), new Vector3(0.4f, 0.4f, 0.4f), glow, false, 45f);
+        }
         GameObject g = Prim(PrimitiveType.Sphere, "Vortice", root.transform, new Vector3(0f, 2.1f, 0f), new Vector3(2.9f, 3.9f, 0.25f), glow, false);
         CartoSpin gs = g.AddComponent<CartoSpin>();
         gs.degreesPerSecond = Vector3.zero;
         gs.bobHeight = 0.12f;
-        PointLight(root.transform, new Vector3(0f, 2.2f, 1.2f), lightColor, 10f, 2.5f);
-        PointLight(root.transform, new Vector3(0f, 2.2f, -1.2f), lightColor, 10f, 2.5f);
+        // Nucleo mas claro en el centro del vortice
+        Color coreColor = Color.Lerp(lightColor, Color.white, 0.6f);
+        GameObject core = Prim(PrimitiveType.Sphere, "Nucleo", root.transform, new Vector3(0f, 2.1f, 0f), new Vector3(1.6f, 2.5f, 0.32f),
+            Mat("Nucleo_" + scene, coreColor, 2.2f), false);
+        CartoSpin cs = core.AddComponent<CartoSpin>();
+        cs.degreesPerSecond = Vector3.zero;
+        cs.bobHeight = 0.07f;
+        cs.bobSpeed = 2.3f;
+        PointLight(root.transform, new Vector3(0f, 2.2f, 1.2f), lightColor, 11f, 2.6f).renderMode = LightRenderMode.ForcePixel;
+        PointLight(root.transform, new Vector3(0f, 2.2f, -1.2f), lightColor, 11f, 2.6f);
+        Particles(root.transform, "Chispas", new Vector3(0f, 2.2f, 0f), new Vector3(2.8f, 3.8f, 0.8f),
+            lightColor, coreColor, 12f, 1.7f, 0.16f, new Vector3(0f, 0.55f, 0f), 0.35f);
         CartoPortal p = root.AddComponent<CartoPortal>();
         p.targetScene = scene;
         p.label = label;
@@ -953,11 +984,12 @@ public static class CartoGameBuilder
         gm.AddComponent<CartoCinematic>().shots = shots;
     }
 
-    static void Torii(Transform parent, Vector3 pos, float halfWidth, Material red, Material dark)
+    static void Torii(Transform parent, Vector3 pos, float halfWidth, Material red, Material dark, float yaw = 0f)
     {
         GameObject root = new GameObject("Torii");
         root.transform.SetParent(parent, false);
         root.transform.position = pos;
+        root.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
         Prim(PrimitiveType.Cylinder, "Pilar", root.transform, new Vector3(-halfWidth, 3f, 0f), new Vector3(0.6f, 3f, 0.6f), red);
         Prim(PrimitiveType.Cylinder, "Pilar", root.transform, new Vector3(halfWidth, 3f, 0f), new Vector3(0.6f, 3f, 0.6f), red);
         Prim(PrimitiveType.Cube, "VigaSuperior", root.transform, new Vector3(0f, 6.4f, 0f), new Vector3(halfWidth * 2f + 3f, 0.5f, 0.95f), dark, false);
@@ -1019,35 +1051,161 @@ public static class CartoGameBuilder
     static void BuildHub()
     {
         Scene scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Single);
-        Color voidColor = new Color(0.07f, 0.04f, 0.16f);
-        Sun(new Vector3(52f, -30f, 0f), new Color(0.82f, 0.78f, 1f), 1.1f);
-        Ambient(new Color(0.5f, 0.45f, 0.75f), new Color(0.34f, 0.3f, 0.5f), new Color(0.14f, 0.12f, 0.24f), voidColor, 45f, 190f);
+
+        // --- Luz: principal calida + relleno frio desde el lado contrario, ambiente oscuro (contraste)
+        //     y niebla suave del color del vacio ---
+        Color voidColor = new Color(0.075f, 0.055f, 0.19f);
+        Sun(new Vector3(44f, -38f, 0f), new Color(1f, 0.86f, 0.66f), 1.2f);
+        FillLight(new Vector3(26f, 142f, 0f), new Color(0.38f, 0.58f, 1f), 0.5f);
+        Ambient(new Color(0.24f, 0.22f, 0.44f), new Color(0.17f, 0.15f, 0.32f), new Color(0.07f, 0.06f, 0.15f), voidColor, 30f, 165f);
 
         Transform env = new GameObject("Entorno").transform;
+        Material stoneDark = Mat("PiedraNexo", new Color(0.25f, 0.24f, 0.33f));
+        Material stoneMid = Mat("PiedraNexoMedia", new Color(0.33f, 0.32f, 0.42f));
         Material stone = Mat("Piedra", new Color(0.42f, 0.4f, 0.45f));
         Material stoneLight = Mat("PiedraClara", new Color(0.6f, 0.58f, 0.66f));
         Material cyan = Mat("BrilloCian", new Color(0.3f, 0.9f, 1f), 1.6f);
-        Material orange = Mat("BrilloNaranja", new Color(1f, 0.6f, 0.15f), 1.8f);
-        Material pink = Mat("BrilloRosa", new Color(1f, 0.35f, 0.7f), 1.8f);
+        Material gold = Mat("BrilloOro", CartoArt.Gold, 1.5f);
+        Material magenta = Mat("BrilloMagenta", CartoArt.Magenta, 1.8f);
+        Material lineCyan = Mat("LineaCian", CartoArt.Cyan, 0.9f);
+        Material lineGold = Mat("LineaOro", CartoArt.Gold, 0.8f);
+        Material lineMagenta = Mat("LineaMagenta", CartoArt.Magenta, 0.9f);
         Material wood = Mat("Madera", new Color(0.42f, 0.28f, 0.17f));
         Material red = Mat("RojoTorii", new Color(0.75f, 0.12f, 0.1f));
         Material dark = Mat("Oscuro", new Color(0.12f, 0.1f, 0.12f));
         Material rift = Mat("Grieta", new Color(0.35f, 0.05f, 0.6f), 1.4f);
         Material trunk = Mat("Tronco", new Color(0.3f, 0.2f, 0.15f));
         Material sakura = Mat("Sakura", new Color(1f, 0.68f, 0.8f), 0.15f);
+        Material grass = Mat("Hierba", new Color(0.34f, 0.46f, 0.28f));
+        string pp = "3D Pirates";
 
-        // Plataforma flotante
-        Prim(PrimitiveType.Cylinder, "Plataforma", env, new Vector3(0f, -0.5f, 0f), new Vector3(46f, 0.5f, 46f), stone);
-        Prim(PrimitiveType.Cylinder, "AnilloBrillante", env, new Vector3(0f, -0.47f, 0f), new Vector3(19f, 0.495f, 19f), cyan, false);
-        Prim(PrimitiveType.Cylinder, "PlataformaCentro2", env, new Vector3(0f, -0.46f, 0f), new Vector3(18f, 0.5f, 18f), stoneLight, false);
-        LimitCircle(env, Vector3.zero, 22.4f, "Borde del Nexo: más allá solo queda el vacío");
+        // =================================================================
+        //  Suelo en anillos, de fuera hacia dentro. Entre anillo y anillo asoma una linea de luz.
+        //    borde (pilares)  ->  anillo medio (portales y altar)  ->  plaza central (rosa de los vientos)
+        // =================================================================
+        Prim(PrimitiveType.Cylinder, "Plataforma", env, new Vector3(0f, -0.5f, 0f), new Vector3(46f, 0.5f, 46f), stoneDark);
+        Prim(PrimitiveType.Cylinder, "RocaInferior1", env, new Vector3(0f, -2.4f, 0f), new Vector3(37f, 1.4f, 37f), stoneDark, false);
+        Prim(PrimitiveType.Cylinder, "RocaInferior2", env, new Vector3(0f, -5.2f, 0f), new Vector3(24f, 1.4f, 24f), stoneDark, false);
+        Prim(PrimitiveType.Cylinder, "RocaInferior3", env, new Vector3(0f, -8f, 0f), new Vector3(11f, 1.4f, 11f), stoneDark, false);
+        Disc(env, "LineaExterior", Vector3.zero, 43.4f, 0.012f, lineCyan);
+        Disc(env, "AnilloExterior", Vector3.zero, 42.8f, 0.024f, stone, true);
+        Disc(env, "LineaMedia", Vector3.zero, 33.6f, 0.036f, lineGold);
+        Disc(env, "AnilloMedio", Vector3.zero, 33f, 0.048f, stoneMid, true);
+        Disc(env, "LineaPlaza", Vector3.zero, 16.8f, 0.06f, lineCyan);
+        Disc(env, "Plaza", Vector3.zero, 16f, 0.072f, stoneLight, true);
 
-        // Altar de mejoras
+        // Rosa de los vientos: el Nexo es el mapa del que parten todas las eras.
+        FloorStrip(env, "RosaNorteSur", Vector3.zero, 0.16f, 15f, 0f, 0.084f, lineGold);
+        FloorStrip(env, "RosaEsteOeste", Vector3.zero, 0.16f, 15f, 90f, 0.084f, lineGold);
+        FloorStrip(env, "RosaDiagonal", Vector3.zero, 0.1f, 9.5f, 45f, 0.084f, lineCyan);
+        FloorStrip(env, "RosaDiagonal", Vector3.zero, 0.1f, 9.5f, 135f, 0.084f, lineCyan);
+        for (int i = 0; i < 16; i++)
+        {
+            float a = i * 22.5f;
+            Vector3 p = Quaternion.Euler(0f, a, 0f) * new Vector3(0f, 0f, 7.2f);
+            FloorStrip(env, "MarcaRosa", p, 0.12f, i % 4 == 0 ? 1.2f : 0.6f, a, 0.084f, i % 4 == 0 ? lineGold : lineCyan);
+        }
+        Disc(env, "LineaMedallon", Vector3.zero, 4.6f, 0.096f, lineCyan);
+        Disc(env, "Medallon", Vector3.zero, 4.1f, 0.108f, stoneDark);
+
+        // Corazon del Nexo: cristal que flota sobre el medallon e ilumina la plaza.
+        GameObject heart = new GameObject("CorazonDelNexo");
+        heart.transform.SetParent(env, false);
+        heart.transform.position = new Vector3(0f, 5.4f, 0f);
+        CartoSpin heartSpin = heart.AddComponent<CartoSpin>();
+        heartSpin.degreesPerSecond = new Vector3(0f, 18f, 0f);
+        heartSpin.bobHeight = 0.25f;
+        heartSpin.bobSpeed = 0.9f;
+        GameObject heartCrystal = Place("Crystal_35", "BUILT_IN", heart.transform.position, 0f, 1f, heart.transform, false, false);
+        FitHeight(heartCrystal, 2.6f, 5.4f);
+        PointLight(heart.transform, new Vector3(0f, 1.2f, 0f), CartoArt.Cyan, 18f, 2.4f).renderMode = LightRenderMode.ForcePixel;
+        Particles(env, "PolvoDelCorazon", new Vector3(0f, 3f, 0f), new Vector3(1.8f, 4.5f, 1.8f),
+            CartoArt.Cyan, Color.white, 9f, 2.4f, 0.14f, new Vector3(0f, 0.9f, 0f), 0.1f);
+
+        // =================================================================
+        //  Caminos: del punto de llegada a la plaza y de la plaza a cada portal, con el color de su destino
+        // =================================================================
+        Walkway(env, new Vector3(0f, 0f, -14.2f), 12.6f, 0f, stoneLight, lineCyan);        // sur: llegada
+        Walkway(env, new Vector3(-11.5f, 0f, 0f), 7.6f, 90f, stoneLight, lineGold);        // oeste: Era Pirata
+        Walkway(env, new Vector3(11.5f, 0f, 0f), 7.6f, 90f, stoneLight, lineMagenta);      // este: Era Samurai
+
+        // Punto de llegada del cartografo
+        Vector3 spawn = new Vector3(0f, 0.2f, -13f);
+        Disc(env, "LineaLlegada", new Vector3(0f, 0f, -13f), 5.2f, 0.096f, lineCyan);
+        Disc(env, "Llegada", new Vector3(0f, 0f, -13f), 4.7f, 0.108f, stoneLight, true);
+        HubPillar(env, new Vector3(-2.8f, 0f, -19.6f), 0f, 2f, stone, stoneDark, cyan, "Crystal_1", CartoArt.Cyan, true);
+        HubPillar(env, new Vector3(2.8f, 0f, -19.6f), 0f, 2f, stone, stoneDark, cyan, "Crystal_1", CartoArt.Cyan, false);
+
+        // =================================================================
+        //  Portales: cada uno en su tarima, con su arco de entrada y restos de su era alrededor
+        // =================================================================
+        Vector3 piratePortal = new Vector3(-16f, 0f, 0f);
+        Vector3 samuraiPortal = new Vector3(16f, 0f, 0f);
+        Disc(env, "LineaPortalPirata", piratePortal, 7f, 0.1f, lineGold);
+        Disc(env, "TarimaPortalPirata", piratePortal, 6.5f, 0.112f, stoneLight, true);
+        Disc(env, "LineaPortalSamurai", samuraiPortal, 7f, 0.1f, lineMagenta);
+        Disc(env, "TarimaPortalSamurai", samuraiPortal, 6.5f, 0.112f, stoneLight, true);
+        Portal(env, piratePortal, 90f, wood, gold, CartoArt.Gold, CartoGameState.ScenePirate, "Viajar a la Era Pirata");
+        Portal(env, samuraiPortal, -90f, red, magenta, CartoArt.Magenta, CartoGameState.SceneSamurai, "Viajar a la Era Samurái");
+
+        // Era Pirata (oeste): arco de muelle sobre el camino, mercancia y un canon
+        DockArch(env, new Vector3(-10.4f, 0f, 0f), 90f, 2.5f, wood, gold);
+        Place("02_Market_Barrel_Stack_3", pp, new Vector3(-14.2f, 0f, -6.2f), 30f, 1f, env);
+        Place("02_Market_Crate_1", pp, new Vector3(-16.4f, 0f, -5.4f), 10f, 1f, env);
+        Place("04_CannonShop_Cannon", pp, new Vector3(-14.6f, 0f, 6.4f), 70f, 1f, env);
+        Place("04_CannonShop_CannonBall_Stack", pp, new Vector3(-16.6f, 0f, 5.6f), 0f, 1f, env);
+        Place("02_Market_Barrel_Single_Closed", pp, new Vector3(-12.8f, 0f, 7.6f), 0f, 1f, env);
+        Place("07_Tavern_UmbrelaTable_1", pp, new Vector3(-11.4f, 0f, -9.2f), 0f, 1f, env);
+
+        // Era Samurai (este): torii sobre el camino, faroles y cerezos
+        Torii(env, new Vector3(10.4f, 0f, 0f), 2.5f, red, dark, 90f);
+        Lantern(env, new Vector3(12.9f, 0f, -3.9f), stone, gold, true);
+        Lantern(env, new Vector3(12.9f, 0f, 3.9f), stone, gold, true);
+        Sakura(env, new Vector3(14.4f, 0f, -8f), 0.9f, trunk, sakura);
+        Sakura(env, new Vector3(14f, 0f, 8.6f), 1f, trunk, sakura);
+
+        // Detras de cada portal flota un pedazo de su era: se ve adonde lleva.
+        GameObject shipHolder = new GameObject("FragmentoPirata");
+        shipHolder.transform.SetParent(env, false);
+        shipHolder.transform.position = new Vector3(-46f, -6f, 3f);
+        CartoSpin shipSpin = shipHolder.AddComponent<CartoSpin>();
+        shipSpin.degreesPerSecond = Vector3.zero;
+        shipSpin.bobHeight = 0.6f;
+        shipSpin.bobSpeed = 0.4f;
+        GameObject ship = Place("99_Ship_L1", pp, shipHolder.transform.position, 80f, 1.6f, shipHolder.transform, false, false);
+        ship.transform.rotation = Quaternion.Euler(0f, 0f, 7f) * ship.transform.rotation;
+        PointLight(shipHolder.transform, new Vector3(6f, 9f, 0f), CartoArt.Gold, 30f, 2.2f);
+
+        GameObject isle = new GameObject("FragmentoSamurai");
+        isle.transform.SetParent(env, false);
+        isle.transform.position = new Vector3(42f, -3f, 2f);
+        Prim(PrimitiveType.Cylinder, "Roca", isle.transform, new Vector3(0f, -1.2f, 0f), new Vector3(16f, 1.2f, 16f), stoneDark, false);
+        Prim(PrimitiveType.Cylinder, "RocaInferior", isle.transform, new Vector3(0f, -3.5f, 0f), new Vector3(9f, 1.2f, 9f), stoneDark, false);
+        Prim(PrimitiveType.Cylinder, "Hierba", isle.transform, new Vector3(0f, 0.04f, 0f), new Vector3(15.2f, 0.06f, 15.2f), grass, false);
+        Torii(isle.transform, isle.transform.position + new Vector3(-2f, 0f, 0f), 2.6f, red, dark, 90f);
+        Sakura(isle.transform, isle.transform.position + new Vector3(2.5f, 0f, -4f), 1.1f, trunk, sakura);
+        Sakura(isle.transform, isle.transform.position + new Vector3(3f, 0f, 4.2f), 0.9f, trunk, sakura);
+        Lantern(isle.transform, isle.transform.position + new Vector3(-4.5f, 0f, 3.4f), stone, gold, false);
+        PointLight(isle.transform, new Vector3(0f, 6f, 0f), CartoArt.Magenta, 26f, 2.2f);
+        CartoSpin isleSpin = isle.AddComponent<CartoSpin>();
+        isleSpin.degreesPerSecond = Vector3.zero;
+        isleSpin.bobHeight = 0.5f;
+        isleSpin.bobSpeed = 0.35f;
+
+        // =================================================================
+        //  Altar de mejoras (norte): tarima propia, arco de monolitos de cristal y los dos pedestales
+        // =================================================================
+        Vector3 daisCenter = new Vector3(0f, 0f, 12.4f);
+        const float daisTop = 0.112f;
+        Disc(env, "LineaAltar", daisCenter, 11.5f, 0.1f, lineCyan);
+        Disc(env, "TarimaAltar", daisCenter, 11f, daisTop, stoneLight, true);
+
         GameObject altar = new GameObject("AltarDeMejoras");
         altar.transform.SetParent(env, false);
         altar.transform.position = new Vector3(0f, 0f, 11f);
         Prim(PrimitiveType.Cube, "Base", altar.transform, new Vector3(0f, 0.3f, 0f), new Vector3(4.2f, 0.6f, 3f), stoneLight);
         Prim(PrimitiveType.Cube, "Mesa", altar.transform, new Vector3(0f, 0.9f, 0f), new Vector3(2.6f, 0.6f, 1.7f), stone);
+        Prim(PrimitiveType.Cube, "Filete", altar.transform, new Vector3(0f, 0.62f, 0f), new Vector3(4.24f, 0.06f, 3.04f), cyan, false);
         GameObject altarCrystalHolder = new GameObject("CristalAltar");
         altarCrystalHolder.transform.SetParent(altar.transform, false);
         altarCrystalHolder.transform.localPosition = new Vector3(0f, 1.5f, 0f);
@@ -1055,61 +1213,106 @@ public static class CartoGameBuilder
         aspin.bobHeight = 0.15f;
         GameObject ac = Place("Crystal_35", "BUILT_IN", new Vector3(0f, 1.5f, 11f), 0f, 1f, altarCrystalHolder.transform, false, false);
         FitHeight(ac, 1.5f, 1.5f);
-        PointLight(altar.transform, new Vector3(0f, 2.6f, 0f), new Color(0.4f, 0.9f, 1f), 12f, 3f);
+        PointLight(altar.transform, new Vector3(0f, 2.6f, 0f), CartoArt.Cyan, 12f, 3f).renderMode = LightRenderMode.ForcePixel;
+        Particles(altar.transform, "Destellos", new Vector3(0f, 2.1f, 0f), new Vector3(1.6f, 1.4f, 1.2f),
+            CartoArt.Cyan, CartoArt.Gold, 7f, 1.6f, 0.13f, new Vector3(0f, 0.5f, 0f), 0.15f);
         altar.AddComponent<CartoShop>();
+
+        // Arco de monolitos detras del altar: el mas alto en el centro
+        string[] arcCrystals = { "Crystal_40", "Crystal_46", "Crystal_35", "Crystal_50", "Crystal_2" };
+        for (int i = 0; i < 5; i++)
+        {
+            float a = (-60f + i * 30f) * Mathf.Deg2Rad;
+            Vector3 p = new Vector3(Mathf.Sin(a) * 5.2f, 0f, 11f + Mathf.Cos(a) * 5.2f);
+            Prim(PrimitiveType.Cube, "Plinto", env, new Vector3(p.x, 0.36f, p.z), new Vector3(1.3f, 0.5f, 1.3f), stone, true, -60f + i * 30f);
+            GameObject mono = Place(arcCrystals[i], "BUILT_IN", new Vector3(p.x, 0.6f, p.z), i * 47f, 1f, env, false, false);
+            FitHeight(mono, 2.6f + 1.8f * Mathf.Cos(a), 0.6f);
+        }
+        PointLight(env, new Vector3(-3f, 3.2f, 15.6f), CartoArt.Cyan, 11f, 2f);
+        PointLight(env, new Vector3(3f, 3.2f, 15.6f), CartoArt.Cyan, 11f, 2f);
 
         // Guardiana del altar (decorativa)
         GameObject npc = new GameObject("GuardianaDelAltar");
         npc.transform.SetParent(env, false);
-        npc.transform.position = new Vector3(3.6f, 0f, 10.4f);
+        npc.transform.position = new Vector3(3.6f, daisTop, 10.4f);
         npc.transform.rotation = Quaternion.Euler(0f, 200f, 0f);
-        CharacterModel("samurai_woman_v2", "Samurai", npc.transform, 1f, pink);
+        CharacterModel("samurai_woman_v2", "Samurai", npc.transform, 1f, magenta);
         npc.AddComponent<CartoBreath>();
         CapsuleCollider npcCol = npc.AddComponent<CapsuleCollider>();
         npcCol.height = 1.8f;
         npcCol.radius = 0.4f;
         npcCol.center = new Vector3(0f, 0.9f, 0f);
 
-        // Pedestales de los cristales recuperados
-        HubPedestal(env, new Vector3(-6f, 0f, 10f), 0, "Crystal_1", new Color(0.3f, 0.9f, 1f), stone);
-        HubPedestal(env, new Vector3(6f, 0f, 10f), 1, "Crystal_5", new Color(1f, 0.4f, 0.8f), stone);
+        // Pedestales de los cristales recuperados: el de cada era en el lado de su portal
+        HubPedestal(env, new Vector3(-6f, 0f, 10f), 0, "Crystal_1", CartoArt.Cyan, stone, lineGold);
+        HubPedestal(env, new Vector3(6f, 0f, 10f), 1, "Crystal_5", CartoArt.Magenta, stone, lineMagenta);
 
-        // Grieta temporal (desaparece al reunir todos los cristales)
-        GameObject riftGo = Prim(PrimitiveType.Sphere, "GrietaTemporal", env, new Vector3(0f, 17f, 8f), new Vector3(7f, 7f, 7f), rift, false);
-        riftGo.AddComponent<CartoSpin>().bobHeight = 0.6f;
+        // =================================================================
+        //  Borde: anillo de pilares con cristal (oro al oeste, magenta al este, cian al norte y al sur)
+        //  y un pretil bajo en ruinas que marca el final de la plataforma
+        // =================================================================
+        string[] ringCrystals = { "Crystal_46", "Crystal_50", "Crystal_40", "Crystal_35", "Crystal_2", "Crystal_1", "Crystal_5" };
+        for (int i = 0; i < 12; i++)
+        {
+            float a = 15f + i * 30f;
+            Vector3 p = Quaternion.Euler(0f, a, 0f) * new Vector3(0f, 0f, 19.5f);
+            bool east = a > 45f && a < 135f;
+            bool west = a > 225f && a < 315f;
+            Color c = east ? CartoArt.Magenta : (west ? CartoArt.Gold : CartoArt.Cyan);
+            Material band = east ? magenta : (west ? gold : cyan);
+            float h = 3.4f + 2.6f * (p.z + 19.5f) / 39f;   // mas altos hacia el altar
+            HubPillar(env, p, a, h, stone, stoneDark, band, ringCrystals[i % ringCrystals.Length], c, i % 2 == 0);
+        }
+        for (int i = 0; i < 40; i++)
+        {
+            float h = Rand(0.55f, 1.35f);
+            float jitter = Rand(-3f, 3f);
+            if (rng.NextDouble() < 0.15) continue;   // tramos caidos
+            float a = i * 9f;
+            Vector3 p = Quaternion.Euler(0f, a, 0f) * new Vector3(0f, h * 0.5f, 22.1f);
+            Prim(PrimitiveType.Cube, "Pretil", env, p, new Vector3(3.1f, h, 0.7f), stone, true, a + jitter);
+        }
+        LimitCircle(env, Vector3.zero, 22.4f, "Borde del Nexo: más allá solo queda el vacío");
+
+        // =================================================================
+        //  Grieta temporal sobre el altar (desaparece al reunir todos los cristales)
+        // =================================================================
+        GameObject riftGo = new GameObject("GrietaTemporal");
+        riftGo.transform.SetParent(env, false);
+        riftGo.transform.position = new Vector3(0f, 17f, 8f);
+        CartoSpin riftSpin = riftGo.AddComponent<CartoSpin>();
+        riftSpin.degreesPerSecond = new Vector3(0f, 14f, 0f);
+        riftSpin.bobHeight = 0.6f;
+        Prim(PrimitiveType.Sphere, "Nucleo", riftGo.transform, Vector3.zero, new Vector3(7f, 7f, 7f), rift, false);
+        for (int i = 0; i < 9; i++)
+        {
+            // Esquirlas que giran alrededor, cada una con su inclinacion
+            float a = i * 40f;
+            Vector3 p = Quaternion.Euler(0f, a, 0f) * new Vector3(0f, Rand(-1.6f, 1.6f), Rand(5.2f, 6.6f));
+            GameObject shard = Prim(PrimitiveType.Cube, "Esquirla", riftGo.transform, p, new Vector3(0.45f, Rand(1.4f, 2.8f), 0.45f),
+                i % 3 == 0 ? magenta : rift, false, a);
+            shard.transform.localRotation = Quaternion.Euler(Rand(-35f, 35f), a, Rand(-35f, 35f));
+        }
         PointLight(riftGo.transform, Vector3.zero, new Color(0.7f, 0.3f, 1f), 40f, 2.5f);
+        Particles(riftGo.transform, "Chispas", Vector3.zero, new Vector3(11f, 9f, 11f),
+            CartoArt.Magenta, new Color(0.6f, 0.35f, 1f), 16f, 3.6f, 0.4f, new Vector3(0f, -0.35f, 0f), 0.6f);
         CartoCrystalDisplay rd = env.gameObject.AddComponent<CartoCrystalDisplay>();
         rd.era = -1;
         rd.invert = true;
         rd.target = riftGo;
 
-        // Portales
-        Portal(env, new Vector3(-15f, 0f, 1f), 90f, wood, orange, new Color(1f, 0.6f, 0.2f), CartoGameState.ScenePirate, "Viajar a la Era Pirata");
-        Portal(env, new Vector3(15f, 0f, 1f), -90f, red, pink, new Color(1f, 0.4f, 0.7f), CartoGameState.SceneSamurai, "Viajar a la Era Samurái");
+        // =================================================================
+        //  Ambiente: motas de tiempo sobre toda la plataforma y restos de eras flotando en el vacio
+        // =================================================================
+        Particles(env, "MotasDelTiempo", new Vector3(0f, 6f, 0f), new Vector3(52f, 14f, 52f),
+            CartoArt.Cyan, CartoArt.Parchment, 26f, 9f, 0.17f, new Vector3(0f, 0.12f, 0f), 0.25f);
 
-        // Fragmentos de la era pirata junto a su portal
-        string pp = "3D Pirates";
-        Place("02_Market_Barrel_Stack_3", pp, new Vector3(-16.5f, 0f, -4.5f), 30f, 1f, env);
-        Place("02_Market_Crate_1", pp, new Vector3(-13.5f, 0f, -5.5f), 10f, 1f, env);
-        Place("04_CannonShop_Cannon", pp, new Vector3(-15.5f, 0f, 6.5f), 70f, 1f, env);
-        Place("04_CannonShop_CannonBall_Stack", pp, new Vector3(-13.6f, 0f, 7.6f), 0f, 1f, env);
-        Place("02_Market_Barrel_Single_Closed", pp, new Vector3(-17.5f, 0f, 9f), 0f, 1f, env);
-        Place("07_Tavern_UmbrelaTable_1", pp, new Vector3(-10f, 0f, -13f), 0f, 1f, env);
-
-        // Fragmentos de la era samurai junto a su portal
-        Sakura(env, new Vector3(16.5f, 0f, -5.5f), 0.9f, trunk, sakura);
-        Sakura(env, new Vector3(16f, 0f, 8.5f), 1f, trunk, sakura);
-        Lantern(env, new Vector3(12.5f, 0f, -3.5f), stone, orange, true);
-        Lantern(env, new Vector3(12.5f, 0f, 5.5f), stone, orange, true);
-        Torii(env, new Vector3(10f, 0f, -14f), 2.6f, red, dark);
-
-        // Restos de eras flotando en el vacio
         string[] crystalNames = { "Crystal_46", "Crystal_50", "Crystal_40", "Crystal_35", "Crystal_2" };
-        string[] debris = { "01_House_5", "99_Ship_L1", "01_House_6", "04_CannonShop_Cannon", "02_Market_Barrel_Stack_3" };
+        string[] debris = { "01_House_5", "01_House_6", "04_CannonShop_Cannon", "02_Market_Barrel_Stack_3", "01_House_5" };
         for (int i = 0; i < 18; i++)
         {
             float a = i * 20f + Rand(-6f, 6f);
-            float r = Rand(31f, 52f);
+            float r = Rand(36f, 58f);
             Vector3 p = Quaternion.Euler(0f, a, 0f) * new Vector3(0f, Rand(-9f, 13f), r);
             GameObject holder = new GameObject("Flotante");
             holder.transform.SetParent(env, false);
@@ -1127,12 +1330,12 @@ public static class CartoGameBuilder
             {
                 GameObject c = Place(crystalNames[i % crystalNames.Length], "BUILT_IN", p, Rand(0f, 360f), 1f, holder.transform, false, false);
                 FitHeight(c, Rand(3f, 7f), p.y);
-                if (i % 2 == 0) PointLight(holder.transform, Vector3.up * 2f, i % 4 == 0 ? new Color(0.4f, 0.9f, 1f) : new Color(1f, 0.4f, 0.8f), 18f, 2f);
+                if (i % 2 == 0) PointLight(holder.transform, Vector3.up * 2f, i % 4 == 0 ? CartoArt.Cyan : CartoArt.Magenta, 18f, 2f);
             }
         }
 
         SetupCommon(CartoGame.Zone.Hub, "Nexo del Tiempo", "Cruza un portal, recupera los cristales y mejora tus armas en el altar",
-            new Vector3(0f, 0.1f, -13f), 0f, false, voidColor);
+            spawn, 0f, false, voidColor);
 
         // Intro de historia: vista general, la grieta, los dos portales y el cartografo.
         AddCinematic(
@@ -1140,21 +1343,94 @@ public static class CartoGameBuilder
                 "El tiempo era un mapa perfecto: cada era en su lugar, cada camino trazado."),
             Shot(new Vector3(-15f, 8f, -9f), new Vector3(-9f, 11f, -4f), new Vector3(0f, 17f, 8f), 5f,
                 "Hasta que una grieta lo desgarró y mezcló todas las épocas."),
-            Shot(new Vector3(-3f, 3.2f, -6f), new Vector3(-7f, 2.8f, -1.5f), new Vector3(-15f, 2.4f, 1f), 5f,
+            Shot(new Vector3(-3f, 3.2f, -5f), new Vector3(-7.5f, 2.8f, -1.5f), new Vector3(-16f, 2.4f, 0f), 5f,
                 "Los cristales que sostenían el tiempo quedaron atrapados lejos de aquí: uno en la Era Pirata..."),
-            Shot(new Vector3(3f, 3.2f, -6f), new Vector3(7f, 2.8f, -1.5f), new Vector3(15f, 2.4f, 1f), 5f,
+            Shot(new Vector3(3f, 3.2f, -5f), new Vector3(7.5f, 2.8f, -1.5f), new Vector3(16f, 2.4f, 0f), 5f,
                 "...y otro en la Era Samurái, en manos de quienes ahora los reclaman."),
             Shot(new Vector3(2.5f, 3.2f, -5f), new Vector3(1.2f, 2.2f, -9.5f), new Vector3(0f, 1.35f, -13f), 6f,
                 "Solo queda un Cartógrafo del Tiempo. Cruza los portales, recupera los cristales y devuelve cada era a su lugar."));
         SaveScene(scene, HubPath);
     }
 
-    static void HubPedestal(Transform env, Vector3 pos, int era, string crystalName, Color color, Material stone)
+    /// <summary>Disco de suelo: cilindro plano de diametro 'diameter' con la cara de arriba a la altura 'top'.</summary>
+    static GameObject Disc(Transform parent, string name, Vector3 center, float diameter, float top, Material mat, bool collider = false)
+    {
+        const float half = 0.25f;
+        return Prim(PrimitiveType.Cylinder, name, parent, new Vector3(center.x, top - half, center.z),
+            new Vector3(diameter, half, diameter), mat, collider);
+    }
+
+    /// <summary>Franja plana sobre el suelo: 'length' a lo largo de su eje Z (girado 'yaw'), cara de arriba en 'top'.</summary>
+    static GameObject FloorStrip(Transform parent, string name, Vector3 center, float width, float length, float yaw, float top,
+        Material mat, bool collider = false)
+    {
+        return Prim(PrimitiveType.Cube, name, parent, new Vector3(center.x, top - 0.01f, center.z),
+            new Vector3(width, 0.02f, length), mat, collider, yaw);
+    }
+
+    /// <summary>Camino del Nexo: losa clara con un filete de luz a cada lado, del color de su destino.</summary>
+    static void Walkway(Transform parent, Vector3 center, float length, float yaw, Material slab, Material edge)
+    {
+        const float width = 3.2f;
+        FloorStrip(parent, "Camino", center, width, length, yaw, 0.084f, slab, true);
+        Vector3 side = Quaternion.Euler(0f, yaw, 0f) * Vector3.right * (width * 0.5f + 0.08f);
+        FloorStrip(parent, "FileteCamino", center + side, 0.16f, length, yaw, 0.096f, edge);
+        FloorStrip(parent, "FileteCamino", center - side, 0.16f, length, yaw, 0.096f, edge);
+    }
+
+    /// <summary>Pilar del borde del Nexo: base, fuste con una franja de luz, capitel y un cristal flotando encima.</summary>
+    static void HubPillar(Transform parent, Vector3 pos, float yaw, float height, Material stone, Material trim, Material band,
+        string crystalName, Color color, bool light)
+    {
+        GameObject root = new GameObject("Pilar");
+        root.transform.SetParent(parent, false);
+        root.transform.position = pos;
+        root.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+        Prim(PrimitiveType.Cube, "Base", root.transform, new Vector3(0f, 0.25f, 0f), new Vector3(1.5f, 0.5f, 1.5f), trim);
+        Prim(PrimitiveType.Cube, "Fuste", root.transform, new Vector3(0f, 0.5f + height * 0.5f, 0f), new Vector3(0.95f, height, 0.95f), stone);
+        Prim(PrimitiveType.Cube, "Franja", root.transform, new Vector3(0f, 0.5f + height * 0.72f, 0f), new Vector3(1.02f, 0.14f, 1.02f), band, false);
+        Prim(PrimitiveType.Cube, "Capitel", root.transform, new Vector3(0f, 0.65f + height, 0f), new Vector3(1.35f, 0.3f, 1.35f), trim, false);
+
+        GameObject holder = new GameObject("Cristal");
+        holder.transform.SetParent(root.transform, false);
+        holder.transform.localPosition = new Vector3(0f, 0.95f + height, 0f);
+        CartoSpin spin = holder.AddComponent<CartoSpin>();
+        spin.degreesPerSecond = new Vector3(0f, 20f, 0f);
+        spin.bobHeight = 0.08f;
+        Vector3 at = holder.transform.position;
+        GameObject c = Place(crystalName, "BUILT_IN", at, 0f, 1f, holder.transform, false, false);
+        FitHeight(c, 1.4f, at.y);
+        if (light) PointLight(holder.transform, new Vector3(0f, 0.8f, 0f), color, 9f, 1.9f);
+    }
+
+    /// <summary>Arco de muelle (entrada al portal pirata): dos postes, travesanos y faroles colgando.</summary>
+    static void DockArch(Transform parent, Vector3 pos, float yaw, float halfWidth, Material wood, Material glow)
+    {
+        GameObject root = new GameObject("ArcoDeMuelle");
+        root.transform.SetParent(parent, false);
+        root.transform.position = pos;
+        root.transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+        Prim(PrimitiveType.Cylinder, "Poste", root.transform, new Vector3(-halfWidth, 2.5f, 0f), new Vector3(0.45f, 2.5f, 0.45f), wood);
+        Prim(PrimitiveType.Cylinder, "Poste", root.transform, new Vector3(halfWidth, 2.5f, 0f), new Vector3(0.45f, 2.5f, 0.45f), wood);
+        Prim(PrimitiveType.Cube, "Travesano", root.transform, new Vector3(0f, 4.85f, 0f), new Vector3(halfWidth * 2f + 1.4f, 0.3f, 0.42f), wood, false);
+        Prim(PrimitiveType.Cube, "Travesano", root.transform, new Vector3(0f, 4.25f, 0f), new Vector3(halfWidth * 2f + 0.5f, 0.18f, 0.3f), wood, false);
+        for (int side = -1; side <= 1; side += 2)
+        {
+            float x = side * halfWidth * 0.5f;
+            Prim(PrimitiveType.Cube, "Cuerda", root.transform, new Vector3(x, 3.95f, 0f), new Vector3(0.06f, 0.45f, 0.06f), wood, false);
+            Prim(PrimitiveType.Cube, "Farol", root.transform, new Vector3(x, 3.5f, 0f), new Vector3(0.4f, 0.5f, 0.4f), glow, false);
+        }
+        PointLight(root.transform, new Vector3(0f, 3.4f, 0f), CartoArt.Gold, 8f, 1.7f);
+    }
+
+    static void HubPedestal(Transform env, Vector3 pos, int era, string crystalName, Color color, Material stone, Material line)
     {
         GameObject root = new GameObject("PedestalCristal_" + era);
         root.transform.SetParent(env, false);
         root.transform.position = pos;
+        Disc(root.transform, "Marca", Vector3.zero, 3f, 0.062f, line);   // el color de su era, aunque falte el cristal
         Prim(PrimitiveType.Cylinder, "Pedestal", root.transform, new Vector3(0f, 0.5f, 0f), new Vector3(1.5f, 0.5f, 1.5f), stone);
+        Prim(PrimitiveType.Cylinder, "Plato", root.transform, new Vector3(0f, 1.03f, 0f), new Vector3(1.8f, 0.04f, 1.8f), stone, false);
         GameObject holder = new GameObject("CristalRecuperado");
         holder.transform.SetParent(root.transform, false);
         holder.transform.localPosition = new Vector3(0f, 1.15f, 0f);
@@ -1162,6 +1438,8 @@ public static class CartoGameBuilder
         GameObject c = Place(crystalName, "BUILT_IN", pos + Vector3.up * 1.15f, 0f, 1f, holder.transform, false, false);
         FitHeight(c, 1.7f, pos.y + 1.15f);
         PointLight(holder.transform, new Vector3(0f, 1f, 0f), color, 10f, 3f);
+        Particles(holder.transform, "Destellos", new Vector3(0f, 0.9f, 0f), new Vector3(1f, 1.6f, 1f),
+            color, Color.white, 6f, 1.5f, 0.12f, new Vector3(0f, 0.45f, 0f), 0.12f);
         CartoCrystalDisplay d = root.AddComponent<CartoCrystalDisplay>();
         d.era = era;
         d.target = holder;
