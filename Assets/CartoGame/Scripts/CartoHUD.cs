@@ -31,6 +31,9 @@ public class CartoHUD : MonoBehaviour
     static int selected;             // boton elegido en el menu abierto
     static Vector2 lastMouse;
     static int guardFrame = -10;     // fotograma en que se cerro un menu: ese clic no llega al juego
+    static string edgeText = "";     // aviso de borde del mapa (CartoBounds)
+    static float edgeStart = -10f;
+    const float EdgeTime = 2.4f;
     static readonly List<Floater> floaters = new List<Floater>();
 
     GUIStyle style;
@@ -57,6 +60,8 @@ public class CartoHUD : MonoBehaviour
         page = Page.Root;
         selected = 0;
         guardFrame = -10;
+        edgeText = "";
+        edgeStart = -10f;
         floaters.Clear();
     }
 
@@ -82,6 +87,13 @@ public class CartoHUD : MonoBehaviour
     public static void FadeFromBlack()
     {
         fadeStart = Time.unscaledTime;
+    }
+
+    /// <summary>Aviso breve de que el cartografo ha llegado al borde del area jugable.</summary>
+    public static void EdgeWarning(string text)
+    {
+        edgeText = text;
+        edgeStart = Time.unscaledTime;
     }
 
     public static void AddFloater(Vector3 worldPos, string text, Color color)
@@ -124,6 +136,7 @@ public class CartoHUD : MonoBehaviour
         floaters.Clear();
         CartoShop.IsOpen = false;
         cursorFree = false;
+        edgeStart = -10f;
         if (overlay == Overlay.Menu || overlay == Overlay.Pause || overlay == Overlay.Death || overlay == Overlay.Cinematic)
             overlay = Overlay.None;
     }
@@ -493,6 +506,18 @@ public class CartoHUD : MonoBehaviour
             Banner(W * 0.5f, H * 0.24f, 62 * s, toast, 29, Gold, 0.6f);
         if (Time.frameCount - promptFrame <= 1 && overlay == Overlay.None && !CartoShop.IsOpen)
             Banner(W * 0.5f, H * 0.72f, 56 * s, prompt, 27, white, 0.68f);
+
+        // Aviso de borde del mapa: aparece, se queda un momento y se desvanece
+        float edge = Time.unscaledTime - edgeStart;
+        if (edge >= 0f && edge < EdgeTime && overlay == Overlay.None && !string.IsNullOrEmpty(edgeText))
+        {
+            float a = Mathf.Clamp01(edge / 0.2f) * Mathf.Clamp01((EdgeTime - edge) / 0.5f);
+            float ew = TextWidth(edgeText, 25) + 72f * s;
+            Rect er = new Rect(W * 0.5f - ew * 0.5f, H * 0.61f, ew, 52f * s);
+            DrawRect(er, CartoArt.A(CartoArt.Ink, 0.8f * a));
+            DrawRect(new Rect(er.x, er.yMax - 4f * s, er.width, 4f * s), CartoArt.A(CartoArt.Magenta, a));
+            Label(er, edgeText, 25, CartoArt.A(CartoArt.Parchment, a), TextAnchor.MiddleCenter, false);
+        }
 
         if (CartoShop.IsOpen && overlay == Overlay.None) DrawShop(W, H);
         if (overlay != Overlay.None) DrawOverlay(W, H);

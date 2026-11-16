@@ -459,6 +459,59 @@ public static class CartoGameBuilder
         b.size = size;
     }
 
+    // Los muros de los limites: gruesos y altos para que nada los cruce (ni rodando ni empujado).
+    const float LimitThickness = 2f;
+    const float LimitHeight = 14f;
+    const float LimitSkin = 0.4f;   // hueco entre el limite que alcanza el cartografo y la cara del muro
+
+    /// <summary>
+    /// Limite circular del area jugable (Nexo): anillo de muros invisibles alrededor de 'center' y un
+    /// CartoBounds que avisa en pantalla al acercarse. 'radius' = hasta donde llega el cartografo.
+    /// </summary>
+    static void LimitCircle(Transform parent, Vector3 center, float radius, string message)
+    {
+        GameObject root = new GameObject("Limites");
+        root.transform.SetParent(parent, false);
+        const int segments = 32;
+        float wallR = radius + LimitSkin + LimitThickness * 0.5f;
+        float width = 2f * (wallR + LimitThickness) * Mathf.Tan(Mathf.PI / segments) + 0.5f;   // se solapan
+        for (int i = 0; i < segments; i++)
+        {
+            float a = i * 360f / segments;
+            Vector3 p = center + Quaternion.Euler(0f, a, 0f) * new Vector3(0f, LimitHeight * 0.5f - 1f, wallR);
+            Wall(root.transform, p, new Vector3(width, LimitHeight, LimitThickness), a);
+        }
+        CartoBounds b = root.AddComponent<CartoBounds>();
+        b.circular = true;
+        b.center = center;
+        b.radius = radius;
+        b.message = message;
+    }
+
+    /// <summary>
+    /// Limite rectangular del area jugable (eras): cuatro muros invisibles y un CartoBounds con el
+    /// aviso. 'halfX' y 'halfZ' = hasta donde llega el cartografo desde 'center'.
+    /// </summary>
+    static void LimitRect(Transform parent, Vector3 center, float halfX, float halfZ, string message)
+    {
+        GameObject root = new GameObject("Limites");
+        root.transform.SetParent(parent, false);
+        float x = halfX + LimitSkin + LimitThickness * 0.5f;
+        float z = halfZ + LimitSkin + LimitThickness * 0.5f;
+        float y = LimitHeight * 0.5f - 1f;
+        float lenX = 2f * (x + LimitThickness);
+        float lenZ = 2f * (z + LimitThickness);
+        Wall(root.transform, center + new Vector3(0f, y, z), new Vector3(lenX, LimitHeight, LimitThickness));
+        Wall(root.transform, center + new Vector3(0f, y, -z), new Vector3(lenX, LimitHeight, LimitThickness));
+        Wall(root.transform, center + new Vector3(x, y, 0f), new Vector3(LimitThickness, LimitHeight, lenZ));
+        Wall(root.transform, center + new Vector3(-x, y, 0f), new Vector3(LimitThickness, LimitHeight, lenZ));
+        CartoBounds b = root.AddComponent<CartoBounds>();
+        b.circular = false;
+        b.center = center;
+        b.halfSize = new Vector2(halfX, halfZ);
+        b.message = message;
+    }
+
     static Light PointLight(Transform parent, Vector3 localPos, Color color, float range, float intensity)
     {
         GameObject go = new GameObject("Luz");
@@ -870,12 +923,7 @@ public static class CartoGameBuilder
         Prim(PrimitiveType.Cylinder, "Plataforma", env, new Vector3(0f, -0.5f, 0f), new Vector3(46f, 0.5f, 46f), stone);
         Prim(PrimitiveType.Cylinder, "AnilloBrillante", env, new Vector3(0f, -0.47f, 0f), new Vector3(19f, 0.495f, 19f), cyan, false);
         Prim(PrimitiveType.Cylinder, "PlataformaCentro2", env, new Vector3(0f, -0.46f, 0f), new Vector3(18f, 0.5f, 18f), stoneLight, false);
-        for (int i = 0; i < 24; i++)
-        {
-            float a = i * 360f / 24f;
-            Vector3 p = Quaternion.Euler(0f, a, 0f) * new Vector3(0f, 3f, 23.2f);
-            Wall(env, p, new Vector3(6.6f, 8f, 0.8f), a);
-        }
+        LimitCircle(env, Vector3.zero, 22.4f, "Borde del Nexo: más allá solo queda el vacío");
 
         // Altar de mejoras
         GameObject altar = new GameObject("AltarDeMejoras");
@@ -1024,10 +1072,7 @@ public static class CartoGameBuilder
         // Suelo y limites
         Prim(PrimitiveType.Cube, "Playa", env, new Vector3(0f, -1f, 0f), new Vector3(64f, 2f, 112f), sand);
         Prim(PrimitiveType.Cube, "Camino", env, new Vector3(0f, 0.01f, 0f), new Vector3(7f, 0.04f, 104f), sandDark, false);
-        Wall(env, new Vector3(0f, 4f, 56f), new Vector3(66f, 10f, 1f));
-        Wall(env, new Vector3(0f, 4f, -56f), new Vector3(66f, 10f, 1f));
-        Wall(env, new Vector3(32f, 4f, 0f), new Vector3(1f, 10f, 114f));
-        Wall(env, new Vector3(-32f, 4f, 0f), new Vector3(1f, 10f, 114f));
+        LimitRect(env, Vector3.zero, 31.1f, 55.1f, "Límite de la era: no puedes ir más lejos");
 
         // Mar, islas y barcos
         GameObject sea = Place("99_Sea", pp, new Vector3(0f, -3.4f, 0f), 0f, 1f, env, false, false);
@@ -1150,10 +1195,7 @@ public static class CartoGameBuilder
         Prim(PrimitiveType.Cube, "Pradera", env, new Vector3(0f, -1f, 0f), new Vector3(64f, 2f, 112f), grass);
         Prim(PrimitiveType.Cube, "Camino", env, new Vector3(0f, 0.01f, 0f), new Vector3(6f, 0.04f, 104f), path, false);
         Prim(PrimitiveType.Cube, "Llanura", env, new Vector3(0f, -1.2f, 0f), new Vector3(900f, 2f, 900f), Mat("HierbaLejana", new Color(0.3f, 0.38f, 0.27f)), false);
-        Wall(env, new Vector3(0f, 4f, 56f), new Vector3(66f, 10f, 1f));
-        Wall(env, new Vector3(0f, 4f, -56f), new Vector3(66f, 10f, 1f));
-        Wall(env, new Vector3(32f, 4f, 0f), new Vector3(1f, 10f, 114f));
-        Wall(env, new Vector3(-32f, 4f, 0f), new Vector3(1f, 10f, 114f));
+        LimitRect(env, Vector3.zero, 31.1f, 55.1f, "Límite de la era: no puedes ir más lejos");
 
         // Fondo: colinas y sol poniente
         Prim(PrimitiveType.Sphere, "Colina", env, new Vector3(-130f, -30f, 150f), new Vector3(190f, 120f, 190f), hill, false);
