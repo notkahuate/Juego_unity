@@ -104,7 +104,7 @@ public class CartoGame : MonoBehaviour
     {
         CartoGameState.introShown = true;
         CartoHUD.ShowOverlay(CartoHUD.Overlay.None);
-        CartoHUD.Toast("Nexo del Tiempo  —  Cruza un portal para viajar a una era", 5f);
+        CartoHUD.Toast("Nexo del Tiempo  —  Cruza un portal para viajar a una era.  F: habilidad de tu arma", 6f);
     }
 
     void EndEraIntro()

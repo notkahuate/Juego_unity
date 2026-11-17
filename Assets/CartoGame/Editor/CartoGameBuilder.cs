@@ -1506,27 +1506,27 @@ public static class CartoGameBuilder
         wide.fovEnd = 54f;
 
         CartoShot tear = Shot(new Vector3(-14f, 6f, -10f), new Vector3(-9f, 9f, -5f), new Vector3(0f, 17f, 8f), 7.5f,
-            "Hasta que algo lo desgarró. Una grieta devoró los mapas... y el tiempo empezó a romperse.");
+            "Hasta que algo lo desgarró. Una grieta devoró los mapas... y las eras cayeron unas dentro de otras.");
         tear.glitch = 1.4f;
 
         CartoShot toPirate = Shot(new Vector3(-3.5f, 2.6f, 0.6f), new Vector3(-10.1f, 2.2f, 0.2f), new Vector3(-16f, 2.3f, 0f), 7.5f,
-            "Un cristal del tiempo cayó en la Era Pirata, bajo la bandera del Capitán Marea Negra...");
+            "En la Era Pirata hay piratas que empuñan acero samurái... y máquinas que no pertenecen a ninguna época.");
         toPirate.fov = 56f;
         toPirate.fovEnd = 42f;
         toPirate.worldSpeed = 0.5f;
 
         CartoShot toSamurai = Shot(new Vector3(3.5f, 2.6f, -0.6f), new Vector3(10.1f, 2.2f, -0.2f), new Vector3(16f, 2.3f, 0f), 7.5f,
-            "...y otro en la Era Samurái, en el dojo de Akudaikan, Señor de la Guerra.");
+            "En la Era Samurái, los guerreros disparan pólvora pirata y los ninjas ya no son del todo humanos.");
         toSamurai.fov = 56f;
         toSamurai.fovEnd = 42f;
         toSamurai.worldSpeed = 0.5f;
 
         CartoShot empty = Shot(new Vector3(-6.5f, 2.4f, 3.5f), new Vector3(6.5f, 2.6f, 3.5f), new Vector3(0f, 1.6f, 11f), 6.5f,
-            "Sin ellos, el Nexo se apaga. Y cuando se apague, no quedará ningún ayer al que volver.");
+            "Cada era guarda un cristal del tiempo. Sin ellos, el Nexo se apaga... y no quedará ningún ayer al que volver.");
 
         // Cierre: la camara sube despacio desde el suelo hasta la cara del cartografo.
         CartoShot hero = Shot(new Vector3(1.4f, 0.45f, -10.3f), new Vector3(0.7f, 1.75f, -10.8f), new Vector3(0f, 0.7f, -13f), 9f,
-            "El último Cartógrafo del Tiempo. Cruza los portales, recupera los cristales y devuelve cada era a su lugar.");
+            "El último Cartógrafo del Tiempo. Recupera los cristales y separa las eras. Tus armas guardan el poder de su época: desátalo con F.");
         hero.moveLook = true;
         hero.lookAtEnd = new Vector3(0f, 1.55f, -13f);
         hero.fov = 44f;
@@ -1537,7 +1537,7 @@ public static class CartoGameBuilder
             Card(4.5f, "Dicen que el tiempo es un mapa.", 0f),
             wide,
             tear,
-            Card(4f, "Las eras se mezclaron.", 0.9f),
+            Card(4f, "Las eras se fusionaron.", 0.9f),
             toPirate,
             toSamurai,
             empty,
@@ -1765,10 +1765,10 @@ public static class CartoGameBuilder
 
         // Presentacion de la era: el puerto desde arriba y el tramo final hacia el jefe.
         AddCinematic(
-            Shot(new Vector3(0f, 13f, -50f), new Vector3(0f, 8f, -30f), new Vector3(0f, 1.5f, 8f), 5.5f,
-                "Era Pirata. El Capitán Marea Negra ha tomado el puerto y esconde un cristal del tiempo."),
-            Shot(new Vector3(6f, 4.6f, 22f), new Vector3(3f, 3.6f, 31f), new Vector3(0f, 2.2f, 42f), 5.5f,
-                "Ábrete paso entre su tripulación. En el pueblo encontrarás un sable y una pistola de chispa."));
+            Shot(new Vector3(0f, 13f, -50f), new Vector3(0f, 8f, -30f), new Vector3(0f, 1.5f, 8f), 7.5f,
+                "Era Pirata... o lo que queda de ella. Sus piratas empuñan acero samurái y los vigilan máquinas que no son de ninguna época."),
+            Shot(new Vector3(6f, 4.6f, 22f), new Vector3(3f, 3.6f, 31f), new Vector3(0f, 2.2f, 42f), 7.5f,
+                "El Capitán Marea Negra guarda el cristal. Busca el sable y la pistola: con F, un arma pirata dispara una ráfaga en abanico."));
         SaveScene(scene, PiratePath);
     }
 
@@ -1916,10 +1916,10 @@ public static class CartoGameBuilder
 
         // Presentacion de la era: el camino de los torii desde arriba y el dojo del jefe.
         AddCinematic(
-            Shot(new Vector3(0f, 12f, -54f), new Vector3(0f, 7.4f, -33f), new Vector3(0f, 3f, 2f), 5.5f,
-                "Era Samurái. Akudaikan, Señor de la Guerra, se ha apoderado del dojo y de otro cristal del tiempo."),
-            Shot(new Vector3(2.5f, 4f, 21.5f), new Vector3(1.5f, 3.6f, 27.5f), new Vector3(0f, 3f, 42f), 5.5f,
-                "Ashigaru, ninjas y samuráis guardan el camino de los torii. Busca la katana y los kunai."));
+            Shot(new Vector3(0f, 12f, -54f), new Vector3(0f, 7.4f, -33f), new Vector3(0f, 3f, 2f), 7.5f,
+                "Era Samurái, invadida. Ashigaru con sables pirata, samuráis que disparan pólvora y ciber-ninjas guardan el camino de los torii."),
+            Shot(new Vector3(2.5f, 4f, 21.5f), new Vector3(1.5f, 3.6f, 27.5f), new Vector3(0f, 3f, 42f), 7.5f,
+                "Akudaikan, Señor de la Guerra, tiene el cristal en su dojo. Busca la katana y los kunai: con F, un arma samurái hace un corte iaido."));
         SaveScene(scene, SamuraiPath);
     }
 }

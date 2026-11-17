@@ -1155,7 +1155,7 @@ public class CartoHUD : MonoBehaviour
             float ty = H * 0.14f;
             Label(new Rect(0, ty, W, 104 * s), "EL CARTÓGRAFO DEL TIEMPO", 80, Cyan, TextAnchor.MiddleCenter, false);
             DrawRect(new Rect(W * 0.5f - 300 * s, ty + 112 * s, 600 * s, Mathf.Max(2f, 3f * s)), Gold);
-            Label(new Rect(0, ty + 126 * s, W, 44 * s), "Las eras se han mezclado. Recupera los cristales del tiempo.",
+            Label(new Rect(0, ty + 126 * s, W, 44 * s), "Las eras se han fusionado. Recupera los cristales del tiempo.",
                 27, CartoArt.Parchment, TextAnchor.MiddleCenter, false);
 
             string[] items = CurrentItems();

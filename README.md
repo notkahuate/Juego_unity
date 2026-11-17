@@ -2,6 +2,8 @@
 
 Demo jugable en Unity (3D, Built-in Render Pipeline). Viaja desde el Nexo del Tiempo a la Era Pirata y la Era Samurái, derrota a los jefes y recupera los cristales.
 
+Una grieta ha fusionado las eras: en la Era Pirata hay piratas con acero samurái y drones que no pertenecen a ninguna época; en la Era Samurái, samuráis con pólvora pirata y ciber-ninjas. Los jefes cambian de fase a media vida, y cada arma tiene una habilidad especial (tecla F).
+
 ## Contenido
 
 - `Assets/CartoGame/Scripts/` — scripts del juego (jugador, enemigos, armas, HUD, tienda, portales…)
@@ -27,6 +29,7 @@ Demo jugable en Unity (3D, Built-in Render Pipeline). Viaja desde el Nexo del Ti
 | Ctrl | Liberar / bloquear la cámara (interruptor; el juego no se pausa) |
 | Espacio | Esquivar |
 | Clic izquierdo / derecho | Ataque cuerpo a cuerpo / a distancia |
+| F | Habilidad especial del arma equipada: Visión temporal (catalejo), Ráfaga en abanico (arma pirata) o Corte iaido (arma samurái) |
 | Q / R | Cambiar arma cuerpo a cuerpo / a distancia |
 | E | Interactuar |
 | 1, 2, 3 | Comprar mejoras en el altar |
