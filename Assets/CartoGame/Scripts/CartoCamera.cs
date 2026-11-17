@@ -24,6 +24,16 @@ public class CartoCamera : MonoBehaviour
     {
         CartoPlayer player = CartoPlayer.Instance;
         if (player == null) return;
+        if (CartoCinematic.Active != null) return;   // durante una cinematica la camara la mueve CartoCinematic
+        if (CartoHUD.MenuOpen)
+        {
+            // Menu principal: giro lento alrededor del Nexo, que sigue vivo de fondo.
+            Vector3 center = new Vector3(0f, 4f, 2f);
+            Vector3 eye = center + Quaternion.Euler(0f, 160f + Time.unscaledTime * 4f, 0f) * new Vector3(0f, 6f, -26f);
+            transform.position = eye;
+            transform.rotation = Quaternion.LookRotation(center - eye);
+            return;
+        }
 
         if (!CartoHUD.Blocking && Cursor.lockState == CursorLockMode.Locked)
         {
@@ -51,7 +61,7 @@ public class CartoCamera : MonoBehaviour
         if (target < currentDistance) currentDistance = target;
         else currentDistance = Mathf.Lerp(currentDistance, target, 1f - Mathf.Exp(-8f * Time.unscaledDeltaTime));
 
-        transform.position = pivot + back * currentDistance;
+        transform.position = pivot + back * currentDistance + rot * CartoFeel.ShakeOffset;   // temblor de los golpes
         transform.rotation = rot;
     }
 

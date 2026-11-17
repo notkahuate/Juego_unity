@@ -9,26 +9,66 @@ CÓMO INSTALAR
    (También está en el menú superior:  CartoGame > Construir juego (crear escenas))
 5. Se abre la escena del Nexo. Pulsa Play.
 
+IMPORTANTE: cada vez que actualices los scripts (por ejemplo al importar un package nuevo), vuelve a
+ejecutar  CartoGame > Construir juego.  Las escenas, el Animator (capa UpperBody) y las partículas se
+generan ahí; con escenas viejas el juego funciona pero no se ven las mejoras.
+El constructor también deja el Player en pantalla completa para el ejecutable.
+
+Si el proyecto se creó con URP/HDRP (todo se ve magenta), el constructor lo cambia solo a
+Built-in al ejecutarse: quita el Render Pipeline Asset de Graphics y de cada nivel de Quality.
+
 Las escenas quedan en  Assets/CartoGame/Generated/Scenes  y se añaden solas a Build Settings.
 Si cambias algo en los scripts del constructor o quieres regenerar los niveles, vuelve a ejecutar el menú.
 
 CONTROLES
-  WASD            moverse
+  WASD            moverse (también mientras atacas)
   Ratón           cámara (rueda = zoom)
   Shift           correr
-  Espacio         esquivar (eres invulnerable mientras ruedas)
+  Ctrl            liberar / bloquear la cámara (ratón libre y cámara quieta, sin pausar el juego)
+  Espacio         esquivar (eres invulnerable mientras ruedas; cancela el ataque en curso)
   Clic izquierdo  ataque cuerpo a cuerpo
   Clic derecho    ataque a distancia (cuando tengas pistola o kunai)
+  F               habilidad especial del arma cuerpo a cuerpo equipada (con recarga, se ve en el HUD)
   Q / R           cambiar arma cuerpo a cuerpo / a distancia
   E               interactuar (portales, altar de mejoras, cristal)
   1, 2, 3         comprar mejoras en el altar
-  Esc             pausa        Enter  confirmar        N  nueva partida (en pausa)
+  Esc             pausa        Enter  aceptar / saltar cinemática
+  F11             pantalla completa / ventana (solo en el ejecutable)
+  Menús           W / S o flechas + Enter, o ratón + clic;  A / D cambia el volumen
+
+MENÚS
+- Menú principal al iniciar: Jugar, Controles, Volumen, Salir. Con una partida en curso (al volver
+  desde la pausa) ofrece Continuar y Nueva partida.
+- Pausa (Esc): Continuar, Controles, Volumen, Volver al menú, Salir del juego, y la colección de armas.
+- Volumen: con el botón elegido, A / D lo baja y lo sube (Enter o clic también lo sube). Se recuerda.
+- Salir cierra el ejecutable; en el editor detiene Play.
 
 CÓMO SE JUEGA
+- Al pulsar Jugar empieza una cinemática de casi un minuto que cuenta la historia (Enter la salta),
+  y hay una presentación breve la primera vez que entras en cada era.
+- Puedes atacar corriendo: las piernas siguen su carrera y el torso golpea. Si haces clic un poco
+  antes de tiempo, el golpe sale en cuanto se puede.
+- Cada escena tiene límites: al acercarte al borde sale un aviso y no se puede pasar.
 - Empiezas en el Nexo del Tiempo con tu catalejo como arma.
-- Cada portal lleva a una era: Era Pirata y Era Samurái.
+- Cada portal lleva a una era: Era Pirata y Era Samurái. La grieta las ha fusionado, así que en
+  cada una hay enemigos mezclados (su nombre y su color salen sobre su barra de vida, y parpadean
+  con una grieta temporal). Ningún tipo se repite de una era a otra:
+    Era Pirata:   Pirata ronin (katana), Pirata shinobi (lanza kunai) y Dron de anomalía
+                  (máquina que te rodea mientras dispara).
+    Era Samurái:  Ashigaru bucanero (sable pirata), Samurái artillero (pistola de chispa) y
+                  Ciber-ninja (rápido, embiste tras un parpadeo de aviso, poca vida).
 - En cada era hay armas propias (sable y pistola de chispa; katana y kunai),
   enemigos que sueltan oro y dan experiencia, y un jefe que guarda el cristal.
+- Habilidad especial (F), según el arma cuerpo a cuerpo equipada (Q la cambia):
+    Catalejo:      Visión temporal: los enemigos van al 40 % durante 4 s.
+    Arma pirata:   Ráfaga en abanico: cinco proyectiles.
+    Arma samurái:  Corte iaido: embestida en línea recta que daña a todo lo que cruza.
+- Los jefes tienen dos fases: a media vida sale un aviso y ganan algo de la otra era. El Capitán
+  Marea Negra invoca drones y embiste; Akudaikan dispara descargas de pólvora.
+- Hay sonido (golpes, disparos, habilidad, oro, cristal, menús, cambio de fase) generado por código.
+- Antes de cada jefe hay un punto de control: dos postes que se encienden al cruzar entre ellos.
+  Si caes después de activarlo reapareces ahí (pierdes 1/4 del oro) en vez de volver al Nexo;
+  los enemigos derrotados siguen derrotados y los que quedaban en pie se recuperan.
 - Al derrotar al jefe se rompe el sello: toma el cristal con E y vuelves al Nexo.
 - En el Altar de Mejoras gastas el oro en subir de nivel el arma equipada y tu vida máxima.
 - Con los 2 cristales el tiempo queda restaurado.
@@ -38,12 +78,30 @@ DÓNDE AJUSTAR COSAS
   o, ya en la escena, en el objeto "_CartoGame" > Carto Weapon Library.
 - Si un arma se ve girada en la mano: en "_CartoGame" > Carto Weapon Library, cambia
   "Grip Euler" y "Grip Offset" de esa arma (en Play se ve el resultado al reequiparla con Q / R).
-- Ropa del cartógrafo: selecciona "Cartografo" en la escena > Carto Player > Outfit Pieces.
+- Colores del juego (biblia de arte: tinta, pergamino, cian, oro, magenta y carmesí):
+  Scripts/CartoArt.cs. El HUD, los menús, las luces del Nexo y las partículas salen de ahí.
+- Enemigos de cada era (tipos, vida, daño, color): BuildPirate y BuildSamurai en
+  Editor/CartoGameBuilder.cs (SpawnEnemy + Fuse, SpawnDrone). Fases de los jefes: en la escena,
+  el jefe > Carto Enemy > Phased, Phase Message, Summon Template, Volley.
+- Habilidad especial (recargas, alcance del iaido): "Cartografo" > Carto Player. Lo que hace
+  cada una: Scripts/CartoPlayer.cs (UseSkill).
+- Sonidos: Scripts/CartoAudio.cs (BuildClips). Para añadir uno: un valor nuevo en Sfx y su clip.
+- Sensación de los golpes (congelado, temblor): Scripts/CartoEnemy.cs (OnDamaged) y CartoFeel.cs.
+  Ritmo del combate: "Cartografo" > Carto Player > Attack Recovery e Input Buffer.
+- Respiración del cartógrafo: "Cartografo" > Carto Breath.
+- Ropa del cartógrafo: selecciona "Cartografo" en la escena > Carto Player > Outfit Pieces
+  (por defecto la armadura PlateSet1 sin casco, para que se le vea la cara).
   Piezas disponibles: Starter_Chest, Starter_Pants, Starter_Boots, PlateSet1_Chest,
   PlateSet1_Pants, PlateSet1_Boots, PlateSet1_Gloves, PlateSet1_Shoulders, PlateSet1_Helmet.
 - Vida, daño, oro y XP de cada enemigo: selecciona el enemigo en la escena
   (Carto Health y Carto Enemy), o cambia los valores en Editor/CartoGameBuilder.cs.
 - Posición de enemigos, casas y decoración: Editor/CartoGameBuilder.cs
   (BuildHub, BuildPirate, BuildSamurai) o directamente moviéndolos en la escena.
+- Texto y planos de las cinemáticas: Editor/CartoGameBuilder.cs (AddCinematic en BuildHub,
+  BuildPirate y BuildSamurai) o, ya en la escena, en "_CartoGame" > Carto Cinematic > Shots.
+  Cada plano admite: Card (tarjeta en negro), Title (rótulo), Fov / Fov End (zoom lento),
+  Glitch (segundos de glitch) y World Speed (cámara lenta).
+- Límites de cada escena: LimitCircle / LimitRect en Editor/CartoGameBuilder.cs, o el objeto
+  "Limites" de la escena (Carto Bounds).
 - Para añadir otra era: copia BuildSamurai, añade armas en CartoWeaponLibrary y
   amplía el arreglo "crystals" de CartoGameState.

@@ -14,17 +14,41 @@ public class CartoPlayer : MonoBehaviour
     public float rollCooldown = 0.9f;
     public float gravity = -25f;
     public float turnSpeed = 14f;
+    public float attackRecovery = 0.8f;   // parte del 'cooldown' del arma que bloquea el siguiente golpe
+    public float inputBuffer = 0.2f;      // segundos que se recuerda un clic de ataque dado antes de tiempo
+
+    // --- Habilidad especial (tecla F): depende de la era del arma cuerpo a cuerpo equipada ---
+    public enum Skill { Vision, Fan, Iaido }
+    public float visionCooldown = 14f;    // catalejo: ralentiza a los enemigos
+    public float fanCooldown = 6f;        // arma pirata: rafaga de 5 proyectiles en abanico
+    public float iaidoCooldown = 7f;      // arma samurai: corte con embestida
+    public float iaidoRange = 7f;
+    public ParticleSystem skillFx;        // rafagas de particulas (lo crea el constructor)
+
+    const float IaidoTime = 0.18f;
+    float skillReadyAt;
+    float skillTotal = 1f;
+    float fanAt = -1f;
+    bool iaidoPending;
+    float iaidoUntil;
+    Vector3 iaidoFrom;
+    Vector3 iaidoTo;
 
     // Piezas de ropa del modelo que se activan al empezar (nombres de los objetos dentro
     // de "Armors"). Disponibles: Starter_Chest, Starter_Pants, Starter_Boots,
     // PlateSet1_Chest, PlateSet1_Pants, PlateSet1_Boots, PlateSet1_Gloves,
     // PlateSet1_Shoulders, PlateSet1_Helmet.
-    public string[] outfitPieces = { "Starter_Chest", "Starter_Pants", "Starter_Boots" };
+    // Por defecto lleva la armadura de placas completa menos el casco, para que se le vea la cara.
+    public string[] outfitPieces =
+    {
+        "PlateSet1_Chest", "PlateSet1_Pants", "PlateSet1_Boots", "PlateSet1_Gloves", "PlateSet1_Shoulders"
+    };
 
     [HideInInspector] public CartoHealth health;
 
     CharacterController cc;
     Animator anim;
+    CartoBreath breath;
     Transform grip;
     GameObject meleeModel;
     GameObject rangedModel;
@@ -37,8 +61,20 @@ public class CartoPlayer : MonoBehaviour
     float fireAt = -1f;
     float nextShoot;
     float showRangedUntil;
-    float animSpeed;
+    Vector2 animMove;     // x = lateral, y = avance (parametros Strafe y Speed del Animator)
     bool dead;
+    float meleeBuffer = -1f;   // ataque pedido mientras aun no se podia: se lanza en cuanto se pueda
+    float shootBuffer = -1f;
+    CartoEnemy aimTarget;      // a quien mira el cartografo mientras dura el golpe
+    Vector3 aimDir;
+    float aimUntil;
+    bool hasUpper;             // el Animator tiene la capa "UpperBody" (torso y brazos)
+    bool hasStrafe;            // el Animator tiene el parametro "Strafe" (correr de lado / hacia atras)
+    float upperUntil;
+    float upperWeight;
+
+    const int UpperLayer = 1;
+    float safeUntil;      // invulnerable un momento al reaparecer en un punto de control
     Vector3 spawnPos;
 
     public bool IsDead { get { return dead; } }
@@ -52,6 +88,8 @@ public class CartoPlayer : MonoBehaviour
         anim = GetComponentInChildren<Animator>();
         if (anim != null) anim.applyRootMotion = false;
         CartoMount.ApplyOutfit(transform, outfitPieces);
+        breath = GetComponent<CartoBreath>();
+        if (breath == null) breath = gameObject.AddComponent<CartoBreath>();   // escenas sin regenerar
 
         health.team = 0;
         health.maxHealth = CartoGameState.maxHealth;
@@ -63,6 +101,13 @@ public class CartoPlayer : MonoBehaviour
 
     void Start()
     {
+        // Escenas sin regenerar no tienen la capa ni el parametro: en ese caso se anima como antes.
+        if (anim != null && anim.runtimeAnimatorController != null)
+        {
+            hasUpper = anim.layerCount > UpperLayer;
+            AnimatorControllerParameter[] ps = anim.parameters;
+            for (int i = 0; i < ps.Length; i++) if (ps[i].name == "Strafe") hasStrafe = true;
+        }
         RefreshWeapons();
     }
 
@@ -111,12 +156,24 @@ public class CartoPlayer : MonoBehaviour
             return;
         }
 
-        CartoGameState.playTime += Time.deltaTime;
+        if (!CartoHUD.OverlayActive) CartoGameState.playTime += Time.deltaTime;
         bool blocked = CartoHUD.Blocking;
         float now = Time.time;
         bool rolling = now < rollUntil;
-        bool busy = now < busyUntil;
-        health.invulnerable = now < rollUntil - 0.1f;
+        health.invulnerable = now < rollUntil - 0.1f || now < safeUntil || iaidoPending;
+
+        // Corte iaido en curso: recorrido fijo que atraviesa a los enemigos; el tajo cae al llegar.
+        if (iaidoPending)
+        {
+            float k = Mathf.Clamp01(1f - (iaidoUntil - now) / IaidoTime);
+            Teleport(Vector3.Lerp(iaidoFrom, iaidoTo, 1f - (1f - k) * (1f - k)));
+            if (k >= 1f)
+            {
+                iaidoPending = false;
+                DoIaidoHit();
+            }
+            return;
+        }
 
         // --- Direccion de movimiento relativa a la camara ---
         Vector2 input = blocked ? Vector2.zero : CartoInput.Move;
@@ -125,30 +182,55 @@ public class CartoPlayer : MonoBehaviour
         Vector3 wish = fwd * input.y + right * input.x;
         if (wish.sqrMagnitude > 1f) wish.Normalize();
 
-        if (!blocked)
+        if (blocked)
+        {
+            meleeBuffer = -1f;
+            shootBuffer = -1f;
+        }
+        else
         {
             // Cambiar de arma
             if (CartoInput.NextMeleeDown) CycleWeapon(false);
             if (CartoInput.NextRangedDown) CycleWeapon(true);
 
-            // Esquivar
+            // El clic se recuerda un instante: si llega justo antes de poder atacar, no se pierde.
+            if (CartoInput.AttackDown)
+            {
+                meleeBuffer = now + inputBuffer;
+                shootBuffer = -1f;
+            }
+            else if (CartoInput.ShootDown)
+            {
+                shootBuffer = now + inputBuffer;
+                meleeBuffer = -1f;
+            }
+
+            // Esquivar: cancela el ataque en curso.
             if (CartoInput.RollDown && !rolling && now >= nextRoll)
             {
                 rollDir = wish.sqrMagnitude > 0.01f ? wish.normalized : transform.forward;
                 rollUntil = now + rollDuration;
                 nextRoll = now + rollCooldown;
                 busyUntil = rollUntil;
-                hitAt = -1f;
-                fireAt = -1f;
+                CancelAttack();
                 rolling = true;
                 transform.rotation = Quaternion.LookRotation(rollDir);
                 Play("Roll");
             }
 
-            // Ataque cuerpo a cuerpo
-            if (CartoInput.AttackDown && !rolling && !busy) StartMelee();
-            // Ataque a distancia
-            else if (CartoInput.ShootDown && !rolling && !busy && now >= nextShoot) StartShoot();
+            if (CartoInput.SkillDown && !rolling && now >= skillReadyAt) UseSkill();
+
+            bool free = !rolling && now >= busyUntil;
+            if (free && now <= meleeBuffer)
+            {
+                meleeBuffer = -1f;
+                StartMelee(wish);
+            }
+            else if (free && now <= shootBuffer && now >= nextShoot)
+            {
+                shootBuffer = -1f;
+                StartShoot();
+            }
         }
 
         if (hitAt > 0f && now >= hitAt)
@@ -161,29 +243,52 @@ public class CartoPlayer : MonoBehaviour
             fireAt = -1f;
             DoShoot();
         }
+        if (fanAt > 0f && now >= fanAt)
+        {
+            fanAt = -1f;
+            DoFan();
+        }
 
-        // --- Movimiento ---
+        // --- Movimiento: se puede caminar y correr tambien mientras se ataca ---
         Vector3 velocity;
-        float targetAnim = 0f;
-        busy = now < busyUntil;
+        Vector2 targetAnim = Vector2.zero;
+        bool aiming = now < aimUntil;
         if (rolling)
         {
             velocity = rollDir * rollSpeed;
         }
         else
         {
-            bool sprint = CartoInput.Sprint && !busy && !blocked;
-            float speed = sprint ? sprintSpeed : walkSpeed;
-            if (busy) speed *= 0.2f;
-            velocity = wish * speed;
-            if (wish.sqrMagnitude > 0.01f)
+            bool sprint = CartoInput.Sprint && !blocked;
+            float gait = sprint ? 1.6f : 1f;
+            velocity = wish * (sprint ? sprintSpeed : walkSpeed);
+            bool moving = wish.sqrMagnitude > 0.01f;
+
+            // Mientras dura el golpe el cuerpo gira hacia el objetivo; si no, hacia donde se camina.
+            Vector3 face = Vector3.zero;
+            if (aiming)
             {
-                if (!busy)
+                if (aimTarget != null && !aimTarget.IsDead) face = aimTarget.transform.position - transform.position;
+                else face = aimDir;
+            }
+            else if (moving) face = wish;
+            face.y = 0f;
+            if (face.sqrMagnitude > 0.0001f)
+            {
+                Quaternion look = Quaternion.LookRotation(face);
+                float turn = aiming ? turnSpeed * 1.5f : turnSpeed;
+                transform.rotation = Quaternion.Slerp(transform.rotation, look, 1f - Mathf.Exp(-turn * Time.deltaTime));
+            }
+
+            if (moving)
+            {
+                if (aiming && hasStrafe)
                 {
-                    Quaternion look = Quaternion.LookRotation(wish);
-                    transform.rotation = Quaternion.Slerp(transform.rotation, look, 1f - Mathf.Exp(-turnSpeed * Time.deltaTime));
+                    // Mirando al enemigo y caminando hacia otro lado: las piernas corren de lado o hacia atras.
+                    Vector3 local = transform.InverseTransformDirection(wish);
+                    targetAnim = new Vector2(local.x, local.z) * gait;
                 }
-                targetAnim = sprint ? 1.6f : 1f;
+                else targetAnim = new Vector2(0f, gait);
             }
         }
 
@@ -192,8 +297,19 @@ public class CartoPlayer : MonoBehaviour
         velocity.y = vy;
         cc.Move(velocity * Time.deltaTime);
 
-        animSpeed = Mathf.Lerp(animSpeed, targetAnim, 1f - Mathf.Exp(-12f * Time.deltaTime));
-        if (anim != null) anim.SetFloat("Speed", animSpeed);
+        animMove = Vector2.Lerp(animMove, targetAnim, 1f - Mathf.Exp(-12f * Time.deltaTime));
+        if (anim != null)
+        {
+            anim.SetFloat("Speed", hasStrafe ? animMove.y : animMove.magnitude);
+            if (hasStrafe) anim.SetFloat("Strafe", animMove.x);
+            if (hasUpper)
+            {
+                // La capa de torso y brazos solo pesa mientras dura el ataque.
+                float target = now < upperUntil && !rolling ? 1f : 0f;
+                upperWeight = Mathf.MoveTowards(upperWeight, target, Time.deltaTime / (target > upperWeight ? 0.06f : 0.14f));
+                anim.SetLayerWeight(UpperLayer, upperWeight);
+            }
+        }
         UpdateWeaponVisibility();
 
         // Red de seguridad por si cae fuera del mapa.
@@ -216,6 +332,27 @@ public class CartoPlayer : MonoBehaviour
         vy = 0f;
     }
 
+    /// <summary>Devuelve al cartografo a la vida, con la vida completa, en un punto de control.</summary>
+    public void Revive(Vector3 pos, float yaw)
+    {
+        dead = false;
+        health.maxHealth = CartoGameState.maxHealth;
+        health.current = CartoGameState.maxHealth;
+        CartoGameState.health = health.current;
+        busyUntil = 0f;
+        rollUntil = 0f;
+        iaidoPending = false;
+        CancelAttack();
+        ResetUpperBody();
+        if (breath != null) breath.enabled = true;
+        animMove = Vector2.zero;
+        safeUntil = Time.time + 2f;
+        Teleport(pos);
+        transform.rotation = Quaternion.Euler(0f, yaw, 0f);
+        spawnPos = pos;
+        Play("Locomotion");
+    }
+
     Vector3 CameraForward()
     {
         Camera cam = Camera.main;
@@ -228,6 +365,49 @@ public class CartoPlayer : MonoBehaviour
     void Play(string state)
     {
         if (anim != null) anim.CrossFadeInFixedTime(state, 0.08f, 0, 0f);
+    }
+
+    /// <summary>
+    /// Reproduce el estado de animacion propio del arma (estilo de su era) en la capa "UpperBody":
+    /// solo mueve torso y brazos, asi las piernas siguen caminando o corriendo. Si el arma no define
+    /// estado o el Animator no lo tiene (escenas sin regenerar), usa el de respaldo; y si no hay capa
+    /// de torso, lo reproduce a cuerpo entero como antes. 'seconds' = cuanto dura el gesto.
+    /// </summary>
+    void PlayWeapon(CartoWeaponDef def, string fallback, float seconds)
+    {
+        if (anim == null) return;
+        int layer = hasUpper ? UpperLayer : 0;
+        string state = def != null ? def.attackState : null;
+        if (string.IsNullOrEmpty(state) || !anim.HasState(layer, Animator.StringToHash(state))) state = fallback;
+        if (layer == UpperLayer && !anim.HasState(UpperLayer, Animator.StringToHash(state))) layer = 0;
+        if (layer == 0)
+        {
+            Play(state);
+            return;
+        }
+        // Desde reposo entra directo (la capa aun no pesa); encadenando golpes, con una mezcla corta.
+        if (upperWeight < 0.05f) anim.Play(state, UpperLayer, 0f);
+        else anim.CrossFadeInFixedTime(state, 0.06f, UpperLayer, 0f);
+        upperUntil = Time.time + seconds;
+    }
+
+    /// <summary>Corta el ataque en curso (al esquivar, morir o reaparecer): ni golpe ni disparo pendientes.</summary>
+    void CancelAttack()
+    {
+        hitAt = -1f;
+        fireAt = -1f;
+        fanAt = -1f;
+        meleeBuffer = -1f;
+        shootBuffer = -1f;
+        aimUntil = 0f;
+        aimTarget = null;
+        upperUntil = 0f;
+    }
+
+    void ResetUpperBody()
+    {
+        upperWeight = 0f;
+        if (anim != null && hasUpper) anim.SetLayerWeight(UpperLayer, 0f);
     }
 
     // ------------------------------------------------------------------ armas
@@ -281,7 +461,7 @@ public class CartoPlayer : MonoBehaviour
         if (dir.sqrMagnitude > 0.0001f) transform.rotation = Quaternion.LookRotation(dir.normalized);
     }
 
-    void StartMelee()
+    void StartMelee(Vector3 wish)
     {
         CartoWeaponLibrary lib = CartoWeaponLibrary.Instance;
         CartoWeaponDef def = lib != null ? lib.Get(CartoGameState.meleeId) : null;
@@ -289,14 +469,18 @@ public class CartoPlayer : MonoBehaviour
         float delay = def != null ? def.hitDelay : 0.26f;
         float range = def != null ? def.range : 2f;
 
-        CartoEnemy target = NearestEnemy(range + 3f, 180f, transform.forward);
-        if (target != null) FaceDirection(target.transform.position - transform.position);
-        else FaceDirection(CameraForward());
+        // El cuerpo gira (suave) hacia el enemigo mas cercano hasta que cae el golpe. Sin enemigo
+        // cerca, golpea hacia donde se camina o, estando quieto, hacia donde mira la camara.
+        aimTarget = NearestEnemy(range + 3f, 180f, transform.forward);
+        aimDir = wish.sqrMagnitude > 0.01f ? wish.normalized : CameraForward();
+        aimUntil = Time.time + delay + 0.12f;
 
         showRangedUntil = 0f;
-        Play(def != null && def.twoHanded ? "Attack2H" : "Attack1H");
+        PlayWeapon(def, def != null && def.twoHanded ? "Attack2H" : "Attack1H", cooldown);
         hitAt = Time.time + delay;
-        busyUntil = Time.time + cooldown;
+        // Recuperacion corta: el siguiente golpe (o el que quedo en el buffer) sale antes de que
+        // termine el gesto, pero nunca antes de que haya caido este.
+        busyUntil = Time.time + Mathf.Max(delay + 0.12f, cooldown * attackRecovery);
     }
 
     void DoMeleeHit()
@@ -336,10 +520,13 @@ public class CartoPlayer : MonoBehaviour
         CartoEnemy target = NearestEnemy(30f, 35f, camF);
         if (target != null) FaceDirection(target.transform.position - transform.position);
         else FaceDirection(camF);
+        aimTarget = target;
+        aimDir = transform.forward;
+        aimUntil = Time.time + def.hitDelay + 0.1f;
 
         showRangedUntil = Time.time + 0.7f;
         UpdateWeaponVisibility();
-        Play("Shoot");
+        PlayWeapon(def, "Shoot", Mathf.Min(0.5f, def.cooldown));
         fireAt = Time.time + def.hitDelay;
         busyUntil = Time.time + Mathf.Min(0.45f, def.cooldown);
         nextShoot = Time.time + def.cooldown;
@@ -356,13 +543,203 @@ public class CartoPlayer : MonoBehaviour
         CartoEnemy target = NearestEnemy(30f, 40f, transform.forward);
         if (target != null)
         {
-            Vector3 aim = target.transform.position + Vector3.up * (target.Height * 0.6f);
+            Vector3 aim = target.AimPoint;
             dir = (aim - origin).normalized;
         }
         float dmg = Mathf.Round(def.damage * CartoGameState.DamageMultiplier(def.id));
+        CartoAudio.Play(CartoAudio.Sfx.Shoot, 0.8f, def.projectileUsesModel ? 1.6f : 1f);
         CartoProjectile.Spawn(origin, dir, def.projectileSpeed, dmg, 0,
             def.projectileUsesModel ? def.prefab : null, def.projectileEuler,
             def.projectileUsesModel ? new Color(0.8f, 0.9f, 1f) : new Color(1f, 0.75f, 0.2f));
+    }
+
+    // ------------------------------------------------------------------ habilidad especial (F)
+
+    /// <summary>La habilidad que toca ahora: la decide la era del arma cuerpo a cuerpo equipada.</summary>
+    public Skill CurrentSkill
+    {
+        get
+        {
+            CartoWeaponLibrary lib = CartoWeaponLibrary.Instance;
+            CartoWeaponDef def = lib != null ? lib.Get(CartoGameState.meleeId) : null;
+            if (def != null && def.era == "Pirata") return Skill.Fan;
+            if (def != null && def.era == "Samurai") return Skill.Iaido;
+            return Skill.Vision;
+        }
+    }
+
+    public static string SkillTitle(Skill s)
+    {
+        switch (s)
+        {
+            case Skill.Fan: return "Ráfaga en abanico";
+            case Skill.Iaido: return "Corte iaido";
+        }
+        return "Visión temporal";
+    }
+
+    public static Color SkillColor(Skill s)
+    {
+        switch (s)
+        {
+            case Skill.Fan: return CartoArt.Gold;
+            case Skill.Iaido: return CartoArt.Magenta;
+        }
+        return CartoArt.Cyan;
+    }
+
+    /// <summary>Segundos que faltan para volver a usar la habilidad, y cuanto dura su recarga.</summary>
+    public float SkillLeft { get { return Mathf.Max(0f, skillReadyAt - Time.time); } }
+    public float SkillTotal { get { return skillTotal; } }
+
+    /// <summary>Hacia donde va la habilidad: al enemigo mas cercano delante de la camara, o al frente.</summary>
+    Vector3 SkillAim(float maxDist, float maxAngle, out CartoEnemy target)
+    {
+        Vector3 camF = CameraForward();
+        target = NearestEnemy(maxDist, maxAngle, camF);
+        if (target == null) return camF;
+        Vector3 to = target.transform.position - transform.position;
+        to.y = 0f;
+        return to.sqrMagnitude > 0.01f ? to.normalized : camF;
+    }
+
+    /// <summary>Rafaga de particulas del color de la habilidad en un punto del mundo.</summary>
+    void Burst(Color color, int count, Vector3 pos)
+    {
+        if (skillFx == null) return;
+        ParticleSystem.EmitParams p = new ParticleSystem.EmitParams();
+        p.position = pos;
+        p.startColor = color;
+        p.applyShapeToPosition = true;
+        skillFx.Emit(p, count);
+    }
+
+    void UseSkill()
+    {
+        CartoWeaponLibrary lib = CartoWeaponLibrary.Instance;
+        CartoWeaponDef melee = lib != null ? lib.Get(CartoGameState.meleeId) : null;
+        Skill skill = CurrentSkill;
+        Color color = SkillColor(skill);
+        float now = Time.time;
+        Vector3 chest = transform.position + Vector3.up * (Height * 0.6f);
+        CartoEnemy target;
+        CancelAttack();
+
+        switch (skill)
+        {
+            case Skill.Vision:
+                // Vision temporal: el cartografo ve el tiempo y lo frena para todos los demas.
+                CartoEnemy.SlowAll(0.4f, 4f);
+                PlayWeapon(melee, "Attack1H", 0.5f);
+                Burst(color, 46, chest);
+                CartoFeel.Shake(0.1f, 0.3f);
+                CartoHUD.Toast("Visión temporal: los enemigos van al 40 %", 2f);
+                busyUntil = now + 0.25f;
+                skillTotal = visionCooldown;
+                break;
+
+            case Skill.Fan:
+                // Rafaga en abanico: cinco proyectiles de polvora; salen un instante despues del gesto.
+                FaceDirection(SkillAim(30f, 40f, out target));
+                aimTarget = target;
+                aimDir = transform.forward;
+                aimUntil = now + 0.3f;
+                PlayWeapon(lib != null ? lib.Get("pistola") : null, "Shoot", 0.5f);
+                fanAt = now + 0.14f;
+                busyUntil = now + 0.4f;
+                skillTotal = fanCooldown;
+                break;
+
+            case Skill.Iaido:
+                // Corte iaido: embestida en linea recta hasta el primer obstaculo.
+                Vector3 dir = SkillAim(11f, 55f, out target);
+                FaceDirection(dir);
+                float reach = iaidoRange;
+                RaycastHit[] hits = Physics.SphereCastAll(transform.position + Vector3.up * 0.9f, 0.3f, dir, reach, ~0, QueryTriggerInteraction.Ignore);
+                for (int i = 0; i < hits.Length; i++)
+                {
+                    Collider c = hits[i].collider;
+                    if (c == null || c is CharacterController) continue;   // a los personajes los atraviesa
+                    if (hits[i].distance <= 0.001f) continue;
+                    if (hits[i].distance < reach) reach = hits[i].distance;
+                }
+                reach = Mathf.Max(0f, reach - 0.45f);
+                // Que no termine metido dentro de un enemigo.
+                for (int n = 0; n < 10 && InsideEnemy(transform.position + dir * reach); n++) reach = Mathf.Max(0f, reach - 0.5f);
+                iaidoFrom = transform.position;
+                iaidoTo = transform.position + dir * reach;
+                iaidoUntil = now + IaidoTime;
+                iaidoPending = true;
+                busyUntil = now + IaidoTime + 0.3f;
+                skillTotal = iaidoCooldown;
+                break;
+        }
+        skillReadyAt = now + skillTotal;
+        CartoHUD.SkillFlash(color);
+        CartoAudio.Play(CartoAudio.Sfx.Skill, 1f, skill == Skill.Vision ? 0.75f : (skill == Skill.Fan ? 1f : 1.3f));
+    }
+
+    bool InsideEnemy(Vector3 pos)
+    {
+        for (int i = 0; i < CartoEnemy.All.Count; i++)
+        {
+            CartoEnemy e = CartoEnemy.All[i];
+            if (e == null || e.IsDead) continue;
+            Vector3 to = e.transform.position - pos;
+            to.y = 0f;
+            float min = e.Radius + 0.6f;
+            if (to.sqrMagnitude < min * min) return true;
+        }
+        return false;
+    }
+
+    void DoFan()
+    {
+        Vector3 origin = transform.position + Vector3.up * (Height * 0.72f) + transform.forward * 0.6f;
+        Vector3 dir = transform.forward;
+        CartoEnemy target = NearestEnemy(30f, 45f, transform.forward);
+        if (target != null) dir = (target.AimPoint - origin).normalized;
+        float dmg = Mathf.Round(16f * CartoGameState.DamageMultiplier(CartoGameState.meleeId));
+        for (int i = -2; i <= 2; i++)
+        {
+            Vector3 d = Quaternion.Euler(0f, i * 11f, 0f) * dir;
+            CartoProjectile.Spawn(origin, d, 40f, dmg, 0, null, Vector3.zero, CartoArt.Gold);
+        }
+        Burst(CartoArt.Gold, 26, origin + transform.forward * 0.3f);
+        CartoAudio.Play(CartoAudio.Sfx.Shoot, 1f, 0.8f);
+        CartoFeel.Shake(0.14f, 0.22f);
+    }
+
+    /// <summary>Fin de la embestida: el tajo alcanza a todo lo que quedo en la linea recorrida.</summary>
+    void DoIaidoHit()
+    {
+        CartoWeaponLibrary lib = CartoWeaponLibrary.Instance;
+        CartoWeaponDef def = lib != null ? lib.Get(CartoGameState.meleeId) : null;
+        float dmg = Mathf.Round((def != null ? def.damage : 30f) * 1.6f * CartoGameState.DamageMultiplier(CartoGameState.meleeId));
+        Vector3 a = iaidoFrom, b = transform.position;
+        Vector3 ab = b - a;
+        ab.y = 0f;
+        float len2 = ab.sqrMagnitude;
+
+        CartoEnemy[] enemies = CartoEnemy.All.ToArray();
+        for (int i = 0; i < enemies.Length; i++)
+        {
+            CartoEnemy e = enemies[i];
+            if (e == null || e.IsDead) continue;
+            Vector3 ap = e.transform.position - a;
+            if (Mathf.Abs(ap.y) > 3f) continue;
+            ap.y = 0f;
+            float t = len2 > 0.0001f ? Mathf.Clamp01(Vector3.Dot(ap, ab) / len2) : 0f;
+            float reach = 1.7f + e.Radius;
+            if ((ap - ab * t).sqrMagnitude > reach * reach) continue;
+            e.health.TakeDamage(dmg, a);
+        }
+
+        for (int i = 0; i <= 8; i++)
+            Burst(CartoArt.Magenta, 5, Vector3.Lerp(a, b, i / 8f) + Vector3.up * 1f);
+        PlayWeapon(def, "Attack2H", 0.55f);
+        CartoFeel.Shake(0.18f, 0.3f);
+        busyUntil = Time.time + 0.3f;
     }
 
     // ------------------------------------------------------------------ dano
@@ -370,14 +747,17 @@ public class CartoPlayer : MonoBehaviour
     void OnDamaged(float amount, Vector3 from)
     {
         CartoHUD.DamageFlash();
-        CartoHUD.AddFloater(transform.position + Vector3.up * Height, "-" + Mathf.RoundToInt(amount), new Color(1f, 0.35f, 0.3f));
+        CartoFeel.Shake(0.13f, 0.22f);
+        CartoAudio.Play(CartoAudio.Sfx.Hurt);
+        CartoHUD.AddFloater(transform.position + Vector3.up * Height, "-" + Mathf.RoundToInt(amount), CartoArt.Crimson, 1.2f);
     }
 
     void OnDied()
     {
         dead = true;
-        hitAt = -1f;
-        fireAt = -1f;
+        CancelAttack();
+        ResetUpperBody();
+        if (breath != null) breath.enabled = false;
         Play("Death");
         if (anim != null) anim.SetFloat("Speed", 0f);
         if (CartoGame.Instance != null) CartoGame.Instance.OnPlayerDied();

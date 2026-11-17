@@ -26,8 +26,13 @@ public static class CartoGameState
     public static string rangedId;
     public static int vitalityLevel;
     public static bool introShown;
+    public static bool[] eraIntroShown = new bool[3];   // cinematica de entrada vista, por CartoGame.Zone
     public static bool victoryShown;
     public static float playTime;
+
+    // El menu principal se muestra al llegar al Nexo. No lo toca Reset(): "Nueva partida" no vuelve
+    // a pasar por el menu; solo se reactiva con "Volver al menu".
+    public static bool menuPending = true;
 
     static CartoGameState()
     {
@@ -38,6 +43,7 @@ public static class CartoGameState
     static void DomainReset()
     {
         Reset();
+        menuPending = true;
     }
 
     public static void Reset()
@@ -56,6 +62,7 @@ public static class CartoGameState
         rangedId = "";
         vitalityLevel = 0;
         introShown = false;
+        eraIntroShown = new bool[3];
         victoryShown = false;
         playTime = 0f;
     }

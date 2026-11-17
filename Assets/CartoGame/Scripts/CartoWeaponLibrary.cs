@@ -12,6 +12,9 @@ public class CartoWeaponDef
     public string prefabHint;      // parte de la ruta, para desambiguar
     public bool ranged;
     public bool twoHanded;
+    // Estado del Animator que se reproduce al atacar con esta arma (estilo de pelea de su era).
+    // Vacio = comportamiento clasico: Attack1H / Attack2H segun twoHanded, o Shoot si es a distancia.
+    public string attackState = "";
     public float damage = 10f;
     public float range = 2.2f;         // alcance (cuerpo a cuerpo)
     public float cooldown = 0.7f;      // tiempo entre ataques
@@ -44,6 +47,18 @@ public class CartoWeaponLibrary : MonoBehaviour
         return null;
     }
 
+    /// <summary>Nombre visible de una era (CartoWeaponDef.era es un identificador sin tildes).</summary>
+    public static string EraTitle(string era)
+    {
+        switch (era)
+        {
+            case "Cartografo": return "Cartógrafo";
+            case "Pirata": return "Era Pirata";
+            case "Samurai": return "Era Samurái";
+        }
+        return string.IsNullOrEmpty(era) ? "Otras armas" : era;
+    }
+
     /// <summary>Definiciones por defecto. Cambia aqui dano, alcance, etc.</summary>
     public static List<CartoWeaponDef> CreateDefaults()
     {
@@ -53,7 +68,7 @@ public class CartoWeaponLibrary : MonoBehaviour
         list.Add(new CartoWeaponDef
         {
             id = "catalejo", displayName = "Catalejo", era = "Cartografo",
-            prefabName = "Telescope", prefabHint = "Pirate Weapons",
+            prefabName = "Telescope", prefabHint = "Pirate Weapons", attackState = "Atk_Cartografo",
             damage = 12f, range = 2.1f, cooldown = 0.62f, hitDelay = 0.26f,
             gripEuler = new Vector3(-90f, 0f, 0f), gripOffset = new Vector3(0f, -0.12f, 0f)
         });
@@ -62,13 +77,13 @@ public class CartoWeaponLibrary : MonoBehaviour
         list.Add(new CartoWeaponDef
         {
             id = "sable", displayName = "Sable pirata", era = "Pirata",
-            prefabName = "Culass1", prefabHint = "Pirate Weapons",
+            prefabName = "Culass1", prefabHint = "Pirate Weapons", attackState = "Atk_Pirata",
             damage = 22f, range = 2.4f, cooldown = 0.58f, hitDelay = 0.25f
         });
         list.Add(new CartoWeaponDef
         {
             id = "pistola", displayName = "Pistola de chispa", era = "Pirata",
-            prefabName = "Flintlock", prefabHint = "Pirate Weapons",
+            prefabName = "Flintlock", prefabHint = "Pirate Weapons", attackState = "Shoot_Pirata",
             ranged = true, damage = 30f, cooldown = 1.1f, hitDelay = 0.16f, projectileSpeed = 45f
         });
 
@@ -76,13 +91,13 @@ public class CartoWeaponLibrary : MonoBehaviour
         list.Add(new CartoWeaponDef
         {
             id = "katana", displayName = "Katana", era = "Samurai",
-            prefabName = "Katana", prefabHint = "Samurai Warrior",
+            prefabName = "Katana", prefabHint = "Samurai Warrior", attackState = "Atk_Samurai",
             twoHanded = true, damage = 36f, range = 2.8f, cooldown = 0.8f, hitDelay = 0.34f
         });
         list.Add(new CartoWeaponDef
         {
             id = "kunai", displayName = "Kunai", era = "Samurai",
-            prefabName = "Kunai", prefabHint = "Samurai Warrior",
+            prefabName = "Kunai", prefabHint = "Samurai Warrior", attackState = "Shoot_Samurai",
             ranged = true, damage = 15f, cooldown = 0.4f, hitDelay = 0.12f, projectileSpeed = 32f,
             projectileUsesModel = true, projectileEuler = new Vector3(90f, 0f, 0f)
         });

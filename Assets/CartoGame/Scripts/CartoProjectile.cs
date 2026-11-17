@@ -50,7 +50,9 @@ public class CartoProjectile : MonoBehaviour
 
     void Update()
     {
-        float step = speed * Time.deltaTime;
+        // Los proyectiles enemigos tambien se frenan con la Vision temporal del cartografo.
+        float dt = Time.deltaTime * (team == 1 ? CartoEnemy.TimeFactor : 1f);
+        float step = speed * dt;
         RaycastHit[] hits = Physics.SphereCastAll(transform.position, radius, direction, step, ~0, QueryTriggerInteraction.Ignore);
         float best = float.MaxValue;
         CartoHealth bestHealth = null;
@@ -75,7 +77,7 @@ public class CartoProjectile : MonoBehaviour
             return;
         }
         transform.position += direction * step;
-        life -= Time.deltaTime;
+        life -= dt;
         if (life <= 0f) Destroy(gameObject);
     }
 }
