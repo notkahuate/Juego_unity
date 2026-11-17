@@ -930,7 +930,7 @@ public class CartoHUD : MonoBehaviour
             CartoEnemy e = CartoEnemy.All[i];
             if (e == null || e.IsDead || e.health.isBoss) continue;
             if (!e.Aggro && e.health.Percent >= 1f) continue;
-            Vector3 sp = cam.WorldToScreenPoint(e.transform.position + Vector3.up * (e.Height + 0.35f));
+            Vector3 sp = cam.WorldToScreenPoint(e.transform.position + Vector3.up * (e.BarHeight + (e.fused ? 0.85f : 0.35f)));
             if (sp.z <= 0f || sp.z > 40f) continue;
             Meter m;
             float shown = e.health.Percent, ghost = shown;
@@ -941,6 +941,12 @@ public class CartoHUD : MonoBehaviour
             }
             float w = 118f * s, h = 14f * s;
             Bar(new Rect(sp.x - w * 0.5f, H - sp.y - h, w, h), shown, ghost, CartoArt.Crimson, CartoArt.A(CartoArt.Ink, 0.92f));
+            // Nombre del tipo, con su color, mientras esta cerca y en guardia
+            if (e.Aggro && sp.z < 26f && !string.IsNullOrEmpty(e.health.displayName))
+            {
+                Label(new Rect(sp.x - 160f * s, H - sp.y - h - 25f * s, 320f * s, 22f * s), e.health.displayName, 15,
+                    Color.Lerp(e.typeColor, CartoArt.Parchment, 0.35f), TextAnchor.MiddleCenter, false);
+            }
         }
 
         // Numeros flotantes: nacen grandes y encogen (golpe), suben frenando y se apagan al final.

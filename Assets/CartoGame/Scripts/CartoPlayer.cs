@@ -504,7 +504,7 @@ public class CartoPlayer : MonoBehaviour
         CartoEnemy target = NearestEnemy(30f, 40f, transform.forward);
         if (target != null)
         {
-            Vector3 aim = target.transform.position + Vector3.up * (target.Height * 0.6f);
+            Vector3 aim = target.AimPoint;
             dir = (aim - origin).normalized;
         }
         float dmg = Mathf.Round(def.damage * CartoGameState.DamageMultiplier(def.id));

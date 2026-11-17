@@ -810,6 +810,111 @@ public static class CartoGameBuilder
         return e;
     }
 
+    /// <summary>
+    /// Marca a un enemigo como fusionado: color de su tipo, grieta temporal (parpadeo, lo hace
+    /// CartoEnemy), un aura de particulas y una esquirla que gira sobre su cabeza.
+    /// </summary>
+    static void Fuse(CartoEnemy e, Color color, bool shard = true)
+    {
+        e.typeColor = color;
+        e.fused = true;
+        CharacterController cc = e.GetComponent<CharacterController>();
+        float h = e.barHeight > 0f ? e.barHeight : cc.height;
+        GameObject fx = new GameObject("FusionTemporal");
+        fx.transform.SetParent(e.transform, false);
+        if (shard)
+        {
+            string id = ColorUtility.ToHtmlStringRGB(color);
+            GameObject piece = Prim(PrimitiveType.Cube, "Esquirla", fx.transform, new Vector3(0f, h + 0.35f, 0f),
+                new Vector3(0.15f, 0.3f, 0.15f), Mat("Esquirla_" + id, color, 2f), false);
+            piece.transform.localRotation = Quaternion.Euler(35f, 0f, 45f);   // de canto, como un cristal roto
+            CartoSpin spin = piece.AddComponent<CartoSpin>();
+            spin.degreesPerSecond = new Vector3(0f, 160f, 0f);
+            spin.bobHeight = 0.06f;
+            spin.bobSpeed = 3f;
+        }
+        Particles(fx.transform, "Aura", new Vector3(0f, h * 0.5f, 0f), new Vector3(0.9f, h * 0.9f, 0.9f),
+            color, Color.Lerp(color, Color.white, 0.5f), 7f, 1.1f, 0.13f, new Vector3(0f, 0.5f, 0f), 0.25f);
+        e.fusionFx = fx;
+    }
+
+    /// <summary>
+    /// Anomalia tecnologica: dron hecho con primitivas emisivas que flota, orbita alrededor del
+    /// cartografo y dispara. No tiene animador; su "cuerpo" para golpes y disparos es una capsula
+    /// invisible que va por el suelo debajo de el.
+    /// </summary>
+    static CartoEnemy SpawnDrone(Transform parent, string display, Vector3 pos, float hp, float damage, float speed,
+        int goldMin, int goldMax, int xp)
+    {
+        const float hover = 1.9f;
+        GameObject root = new GameObject("Enemigo_" + display);
+        root.transform.SetParent(parent, false);
+        root.transform.position = pos;
+        root.transform.rotation = Quaternion.Euler(0f, 180f, 0f);
+
+        // Modelo (lo mueve la grieta temporal) > Cuerpo (flota arriba y abajo) > piezas
+        GameObject model = new GameObject("Modelo");
+        model.transform.SetParent(root.transform, false);
+        model.transform.localPosition = new Vector3(0f, hover, 0f);
+        GameObject body = new GameObject("Cuerpo");
+        body.transform.SetParent(model.transform, false);
+        CartoSpin bob = body.AddComponent<CartoSpin>();
+        bob.degreesPerSecond = Vector3.zero;
+        bob.bobHeight = 0.16f;
+        bob.bobSpeed = 2.4f;
+
+        Material shell = Mat("DronCasco", new Color(0.13f, 0.15f, 0.22f), 0f, 0.6f);
+        Material glow = Mat("BrilloCian", new Color(0.3f, 0.9f, 1f), 1.6f);
+        Prim(PrimitiveType.Sphere, "Nucleo", body.transform, Vector3.zero, new Vector3(0.72f, 0.72f, 0.72f), shell, false);
+        Prim(PrimitiveType.Sphere, "Ojo", body.transform, new Vector3(0f, 0.02f, 0.27f), new Vector3(0.36f, 0.36f, 0.3f), glow, false);
+        Prim(PrimitiveType.Cube, "Canon", body.transform, new Vector3(0f, -0.3f, 0.26f), new Vector3(0.13f, 0.13f, 0.5f), shell, false);
+        Prim(PrimitiveType.Cube, "BocaCanon", body.transform, new Vector3(0f, -0.3f, 0.52f), new Vector3(0.16f, 0.16f, 0.06f), glow, false);
+        Prim(PrimitiveType.Cube, "Antena", body.transform, new Vector3(0f, 0.52f, -0.1f), new Vector3(0.05f, 0.42f, 0.05f), shell, false);
+        Prim(PrimitiveType.Sphere, "PuntaAntena", body.transform, new Vector3(0f, 0.76f, -0.1f), new Vector3(0.12f, 0.12f, 0.12f), glow, false);
+        GameObject ring = new GameObject("Anillo");
+        ring.transform.SetParent(body.transform, false);
+        ring.AddComponent<CartoSpin>().degreesPerSecond = new Vector3(0f, 200f, 0f);
+        for (int i = 0; i < 6; i++)
+        {
+            float a = i * 60f;
+            Vector3 p = Quaternion.Euler(0f, a, 0f) * new Vector3(0f, 0f, 0.62f);
+            Prim(PrimitiveType.Cube, "Placa", ring.transform, p, new Vector3(0.32f, 0.07f, 0.14f), i % 2 == 0 ? glow : shell, false, a);
+        }
+        PointLight(body.transform, Vector3.zero, CartoArt.Cyan, 5f, 1.4f);
+
+        CharacterController cc = root.AddComponent<CharacterController>();
+        cc.height = 2.7f;
+        cc.radius = 0.5f;
+        cc.center = new Vector3(0f, 1.38f, 0f);
+        cc.stepOffset = 0.4f;
+
+        CartoHealth h = root.AddComponent<CartoHealth>();
+        h.team = 1;
+        h.maxHealth = hp;
+        h.current = hp;
+        h.displayName = display;
+
+        CartoEnemy e = root.AddComponent<CartoEnemy>();
+        e.damage = damage;
+        e.moveSpeed = speed;
+        e.goldMin = goldMin;
+        e.goldMax = goldMax;
+        e.xp = xp;
+        e.ranged = true;
+        e.orbits = true;
+        e.keepDistance = 7.5f;
+        e.projectileSpeed = 17f;
+        e.projectileColor = CartoArt.Cyan;
+        e.windup = 0.45f;
+        e.recover = 1.2f;
+        e.aggroRange = 16f;
+        e.model = model.transform;
+        e.barHeight = hover + 0.55f;
+        e.aimHeight = hover;
+        Fuse(e, CartoArt.Cyan, false);
+        return e;
+    }
+
     static void WeaponPickup(Transform parent, string weaponId, Vector3 pos, Color color)
     {
         GameObject root = new GameObject("Arma_" + weaponId);
@@ -1565,18 +1670,30 @@ public static class CartoGameBuilder
         WeaponPickup(env, "sable", new Vector3(0f, 0f, -33f), new Color(1f, 0.7f, 0.2f));
         WeaponPickup(env, "pistola", new Vector3(0f, 0f, -3f), new Color(1f, 0.7f, 0.2f));
 
-        // Enemigos
-        float[,] crew =
+        // Enemigos: la era esta invadida. Piratas con acero samurai (ronin con katana, shinobi que
+        // lanzan kunai) y anomalias tecnologicas (drones) que no son de ninguna epoca.
+        string pc = "LowPolyPirate";
+        string sw = "Samurai Warrior";
+        float[,] ronin = { { -4f, -20f }, { 4f, -20f }, { -5f, 5f }, { 5f, 5f }, { -4f, 24f } };
+        for (int i = 0; i < ronin.GetLength(0); i++)
         {
-            { -4f, -20f }, { 0f, -17f }, { 4f, -20f },
-            { -5f, 5f }, { 5f, 5f }, { -2f, 10f }, { 3f, 11f },
-            { -4f, 24f }, { 4f, 24f }, { 0f, 28f }
-        };
-        for (int i = 0; i < crew.GetLength(0); i++)
-        {
-            SpawnEnemy(enemies, "SharkCrew", "LowPolyPirate", "Pirata tiburón", new Vector3(crew[i, 0], 0.05f, crew[i, 1]),
-                0.85f, 60f, 10f, 3.6f, 7, 13, 15, "Culass2", "Pirate Weapons", false, false, false);
+            CartoEnemy e = SpawnEnemy(enemies, "SharkCrew", pc, "Pirata ronin", new Vector3(ronin[i, 0], 0.05f, ronin[i, 1]),
+                0.85f, 70f, 13f, 3.8f, 8, 14, 16, "Katana", sw, true, false, false);
+            Fuse(e, CartoArt.Magenta);
         }
+        float[,] shinobi = { { 0f, -17f }, { 4f, 24f } };
+        for (int i = 0; i < shinobi.GetLength(0); i++)
+        {
+            CartoEnemy e = SpawnEnemy(enemies, "SharkCrew", pc, "Pirata shinobi", new Vector3(shinobi[i, 0], 0.05f, shinobi[i, 1]),
+                0.8f, 48f, 9f, 4.4f, 8, 14, 16, "Kunai", sw, false, true, false);
+            e.keepDistance = 8f;
+            e.projectileColor = CartoArt.Parchment;
+            Fuse(e, CartoArt.Parchment);
+        }
+        float[,] drones = { { -2f, 10f }, { 3f, 11f }, { 0f, 28f } };
+        for (int i = 0; i < drones.GetLength(0); i++)
+            SpawnDrone(enemies, "Dron de anomalía", new Vector3(drones[i, 0], 0.05f, drones[i, 1]), 40f, 8f, 3.4f, 10, 16, 20);
+
         CartoEnemy boss = SpawnEnemy(enemies, "Captain_Male", "LowPolyPirate", "Capitán Marea Negra", new Vector3(0f, 0.05f, 40f),
             1.15f, 340f, 22f, 4.1f, 70, 90, 120, "Culass1", "Pirate Weapons", false, false, true);
 
@@ -1685,19 +1802,40 @@ public static class CartoGameBuilder
         WeaponPickup(env, "katana", new Vector3(0f, 0f, -33f), new Color(1f, 0.4f, 0.7f));
         WeaponPickup(env, "kunai", new Vector3(0f, 0f, -14f), new Color(1f, 0.4f, 0.7f));
 
-        // Enemigos
+        // Enemigos: la era esta invadida. Samurais con polvora y acero pirata (artilleros con pistola
+        // de chispa, bucaneros con sable) y ciber-ninjas que embisten.
         string sp = "LowPolySamurai";
         string sw = "Samurai Warrior";
-        float[,] g1 = { { -4f, -22f }, { 4f, -22f }, { 0f, -19f } };
-        for (int i = 0; i < 3; i++)
-            SpawnEnemy(enemies, "ashigaru_v2", sp, "Ashigaru", new Vector3(g1[i, 0], 0.05f, g1[i, 1]), 1f, 80f, 14f, 3.6f, 9, 15, 20, "Yari", sw, true, false, false);
-        SpawnEnemy(enemies, "ashigaru_v2", sp, "Ashigaru", new Vector3(-2.5f, 0.05f, 2f), 1f, 80f, 14f, 3.6f, 9, 15, 20, "Yari", sw, true, false, false);
-        SpawnEnemy(enemies, "ashigaru_v2", sp, "Ashigaru", new Vector3(2.5f, 0.05f, 2f), 1f, 80f, 14f, 3.6f, 9, 15, 20, "Yari", sw, true, false, false);
-        SpawnEnemy(enemies, "Ninja_v2", sp, "Ninja", new Vector3(-8f, 0.05f, 7f), 1f, 55f, 9f, 5f, 10, 16, 22, "Kunai", sw, false, true, false);
-        SpawnEnemy(enemies, "Ninja_v2", sp, "Ninja", new Vector3(8f, 0.05f, 8f), 1f, 55f, 9f, 5f, 10, 16, 22, "Kunai", sw, false, true, false);
-        SpawnEnemy(enemies, "Samurai_v2", sp, "Samurái", new Vector3(-3f, 0.05f, 24f), 1f, 120f, 18f, 3.9f, 14, 20, 30, "Katana", sw, true, false, false);
-        SpawnEnemy(enemies, "Samurai_v2", sp, "Samurái", new Vector3(3f, 0.05f, 24f), 1f, 120f, 18f, 3.9f, 14, 20, 30, "Katana", sw, true, false, false);
-        SpawnEnemy(enemies, "Ninja_v2", sp, "Ninja", new Vector3(0f, 0.05f, 29f), 1f, 55f, 9f, 5f, 10, 16, 22, "Kunai", sw, false, true, false);
+        string pw = "Pirate Weapons";
+        float[,] bucaneros = { { -4f, -22f }, { 4f, -22f }, { -2.5f, 2f }, { 2.5f, 2f } };
+        for (int i = 0; i < bucaneros.GetLength(0); i++)
+        {
+            CartoEnemy e = SpawnEnemy(enemies, "ashigaru_v2", sp, "Ashigaru bucanero", new Vector3(bucaneros[i, 0], 0.05f, bucaneros[i, 1]),
+                1f, 85f, 15f, 4f, 10, 16, 22, "Culass2", pw, false, false, false);
+            Fuse(e, CartoArt.Crimson);
+        }
+        float[,] artilleros = { { 0f, -19f }, { -3f, 24f }, { 3f, 24f } };
+        for (int i = 0; i < artilleros.GetLength(0); i++)
+        {
+            CartoEnemy e = SpawnEnemy(enemies, "Samurai_v2", sp, "Samurái artillero", new Vector3(artilleros[i, 0], 0.05f, artilleros[i, 1]),
+                1f, 100f, 20f, 3.4f, 14, 20, 30, "Flintlock", pw, false, true, false);
+            e.projectilePrefab = null;          // dispara balas, no lanza la pistola
+            e.projectileColor = CartoArt.Gold;
+            e.projectileSpeed = 24f;
+            e.keepDistance = 10f;
+            e.recover = 1.5f;
+            Fuse(e, CartoArt.Gold);
+        }
+        float[,] ninjas = { { -8f, 7f }, { 8f, 8f }, { 0f, 29f } };
+        for (int i = 0; i < ninjas.GetLength(0); i++)
+        {
+            CartoEnemy e = SpawnEnemy(enemies, "Ninja_v2", sp, "Ciber-ninja", new Vector3(ninjas[i, 0], 0.05f, ninjas[i, 1]),
+                1f, 45f, 12f, 5.6f, 12, 18, 26, "Tanto", sw, false, false, false);
+            e.dasher = true;
+            e.windup = 0.35f;
+            e.recover = 0.7f;
+            Fuse(e, CartoArt.Cyan);
+        }
         CartoEnemy boss = SpawnEnemy(enemies, "Akudaikan_v2", sp, "Akudaikan, Señor de la Guerra", new Vector3(0f, 0.25f, 41f),
             1.3f, 520f, 28f, 4.2f, 110, 130, 200, "Kanabo", sw, true, false, true);
 
