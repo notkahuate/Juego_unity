@@ -73,6 +73,8 @@ public class CartoHUD : MonoBehaviour
     static int selected;             // boton elegido en el menu abierto
     static Vector2 lastMouse;
     static int guardFrame = -10;     // fotograma en que se cerro un menu: ese clic no llega al juego
+    static Color skillFlashColor;    // destello de pantalla al usar la habilidad especial
+    static float skillFlashStart = -10f;
     static string edgeText = "";     // aviso de borde del mapa (CartoBounds)
     static float edgeStart = -10f;
     const float EdgeTime = 2.4f;
@@ -141,6 +143,13 @@ public class CartoHUD : MonoBehaviour
     public static void FadeFromBlack()
     {
         fadeStart = Time.unscaledTime;
+    }
+
+    /// <summary>Destello de toda la pantalla, del color de la habilidad especial que se acaba de usar.</summary>
+    public static void SkillFlash(Color color)
+    {
+        skillFlashColor = color;
+        skillFlashStart = Time.unscaledTime;
     }
 
     /// <summary>Aviso breve de que el cartografo ha llegado al borde del area jugable.</summary>
@@ -458,12 +467,13 @@ public class CartoHUD : MonoBehaviour
     static readonly string[] ControlKeys =
     {
         "WASD", "Ratón", "Shift", "Espacio", "Clic izquierdo", "Clic derecho",
-        "Q  /  R", "E", "1, 2, 3", "Ctrl", "Esc", "Enter", "F11"
+        "F", "Q  /  R", "E", "1, 2, 3", "Ctrl", "Esc", "Enter", "F11"
     };
     static readonly string[] ControlActions =
     {
         "Moverse (también mientras atacas)", "Cámara (rueda = zoom)", "Correr", "Esquivar (cancela el ataque)",
         "Ataque cuerpo a cuerpo", "Ataque a distancia",
+        "Habilidad especial del arma equipada",
         "Cambiar arma cercana / a distancia", "Interactuar (portal, altar, cristal)", "Comprar mejoras en el altar",
         "Liberar / bloquear cámara", "Pausa", "Aceptar / saltar cinemática", "Pantalla completa / ventana"
     };
@@ -760,6 +770,52 @@ public class CartoHUD : MonoBehaviour
             }
         }
 
+        // --- Habilidad especial (F): junto a las armas, con su recarga a la vista ---
+        if (player != null)
+        {
+            CartoPlayer.Skill skill = player.CurrentSkill;
+            Color sc = CartoPlayer.SkillColor(skill);
+            float left = player.SkillLeft;
+            float total = Mathf.Max(0.1f, player.SkillTotal);
+            bool ready = left <= 0f;
+            Rect sk = new Rect(W - 760 * s, H - 122 * s, 244 * s, 104 * s);
+            HudPanel(sk, sc);
+            Rect key = new Rect(sk.x + 14 * s, sk.y + 16 * s, 60 * s, 60 * s);
+            float line = Mathf.Max(1f, 2f * s);
+            float keyPulse = ready ? 0.5f + 0.5f * Mathf.Sin(now * 4f) : 0f;
+            DrawRect(key, CartoArt.A(sc, ready ? 0.26f + 0.16f * keyPulse : 0.1f));
+            DrawRect(new Rect(key.x, key.y, key.width, line), CartoArt.A(sc, ready ? 1f : 0.45f));
+            DrawRect(new Rect(key.x, key.yMax - line, key.width, line), CartoArt.A(sc, ready ? 1f : 0.45f));
+            DrawRect(new Rect(key.x, key.y, line, key.height), CartoArt.A(sc, ready ? 1f : 0.45f));
+            DrawRect(new Rect(key.xMax - line, key.y, line, key.height), CartoArt.A(sc, ready ? 1f : 0.45f));
+            // Mientras recarga, la tecla esta tapada y se va destapando de arriba abajo.
+            if (!ready) DrawRect(new Rect(key.x, key.y + key.height * (1f - left / total), key.width, key.height * (left / total)), new Color(0f, 0f, 0f, 0.6f));
+            Label(key, ready ? "F" : Mathf.CeilToInt(left).ToString(), ready ? 32 : 27, ready ? parchment : Dim, TextAnchor.MiddleCenter, false);
+            float tx = key.xMax + 12 * s;
+            Label(new Rect(tx, sk.y + 10 * s, sk.xMax - tx - 8 * s, 20 * s), "HABILIDAD", 13, CartoArt.A(sc, 0.95f), TextAnchor.MiddleLeft, false);
+            Label(new Rect(tx, sk.y + 30 * s, sk.xMax - tx - 8 * s, 50 * s), CartoPlayer.SkillTitle(skill), 19, ready ? parchment : Dim, TextAnchor.UpperLeft, true);
+            Bar(new Rect(sk.x + 14 * s, sk.yMax - 18 * s, sk.width - 28 * s, 9 * s), ready ? 1f : 1f - left / total, sc);
+        }
+
+        // Vision temporal activa: marco cian en la pantalla y cuanto le queda
+        float slow = CartoEnemy.SlowLeft;
+        if (slow > 0f && overlay == Overlay.None)
+        {
+            float a = Mathf.Clamp01(slow / 0.4f) * (0.45f + 0.2f * Mathf.Sin(now * 6f));
+            float b = 7f * s;
+            DrawRect(new Rect(0, 0, W, b), CartoArt.A(Cyan, a));
+            DrawRect(new Rect(0, H - b, W, b), CartoArt.A(Cyan, a));
+            DrawRect(new Rect(0, b, b, H - 2f * b), CartoArt.A(Cyan, a));
+            DrawRect(new Rect(W - b, b, b, H - 2f * b), CartoArt.A(Cyan, a));
+            Rect vr = new Rect(W * 0.5f - 160 * s, H * 0.2f, 320 * s, 10 * s);
+            Label(new Rect(vr.x, vr.y - 24 * s, vr.width, 22 * s), "VISIÓN TEMPORAL", 15, Cyan, TextAnchor.MiddleCenter, false);
+            Bar(vr, slow / 4f, Cyan);
+        }
+
+        // Destello al usar la habilidad
+        float sf = 1f - (now - skillFlashStart) / 0.3f;
+        if (sf > 0f) DrawRect(new Rect(0, 0, W, H), CartoArt.A(skillFlashColor, 0.22f * sf));
+
         // --- Abajo a la izquierda (lo menos importante): recordatorio de controles, pequeno y tenue ---
         Rect cp = new Rect(20 * s, H - 84 * s, 640 * s, 66 * s);
         DrawRect(cp, CartoArt.A(CartoArt.Ink, 0.45f));
@@ -767,7 +823,7 @@ public class CartoHUD : MonoBehaviour
         Label(new Rect(cp.x + 14 * s, cp.y + 5 * s, cp.width - 28 * s, 28 * s),
             "WASD mover     Shift correr     Espacio esquivar     E interactuar", 17, hint, TextAnchor.MiddleLeft, false);
         Label(new Rect(cp.x + 14 * s, cp.y + 33 * s, cp.width - 28 * s, 28 * s),
-            "Q / R cambiar arma     Ctrl liberar cámara     Esc pausa", 17, hint, TextAnchor.MiddleLeft, false);
+            "F habilidad     Q / R cambiar arma     Ctrl liberar cámara     Esc pausa", 17, hint, TextAnchor.MiddleLeft, false);
         if (cursorFree && overlay == Overlay.None)
         {
             Rect ft = new Rect(20 * s, cp.y - 46 * s, 520 * s, 38 * s);

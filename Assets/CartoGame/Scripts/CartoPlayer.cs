@@ -17,6 +17,23 @@ public class CartoPlayer : MonoBehaviour
     public float attackRecovery = 0.8f;   // parte del 'cooldown' del arma que bloquea el siguiente golpe
     public float inputBuffer = 0.2f;      // segundos que se recuerda un clic de ataque dado antes de tiempo
 
+    // --- Habilidad especial (tecla F): depende de la era del arma cuerpo a cuerpo equipada ---
+    public enum Skill { Vision, Fan, Iaido }
+    public float visionCooldown = 14f;    // catalejo: ralentiza a los enemigos
+    public float fanCooldown = 6f;        // arma pirata: rafaga de 5 proyectiles en abanico
+    public float iaidoCooldown = 7f;      // arma samurai: corte con embestida
+    public float iaidoRange = 7f;
+    public ParticleSystem skillFx;        // rafagas de particulas (lo crea el constructor)
+
+    const float IaidoTime = 0.18f;
+    float skillReadyAt;
+    float skillTotal = 1f;
+    float fanAt = -1f;
+    bool iaidoPending;
+    float iaidoUntil;
+    Vector3 iaidoFrom;
+    Vector3 iaidoTo;
+
     // Piezas de ropa del modelo que se activan al empezar (nombres de los objetos dentro
     // de "Armors"). Disponibles: Starter_Chest, Starter_Pants, Starter_Boots,
     // PlateSet1_Chest, PlateSet1_Pants, PlateSet1_Boots, PlateSet1_Gloves,
@@ -143,7 +160,20 @@ public class CartoPlayer : MonoBehaviour
         bool blocked = CartoHUD.Blocking;
         float now = Time.time;
         bool rolling = now < rollUntil;
-        health.invulnerable = now < rollUntil - 0.1f || now < safeUntil;
+        health.invulnerable = now < rollUntil - 0.1f || now < safeUntil || iaidoPending;
+
+        // Corte iaido en curso: recorrido fijo que atraviesa a los enemigos; el tajo cae al llegar.
+        if (iaidoPending)
+        {
+            float k = Mathf.Clamp01(1f - (iaidoUntil - now) / IaidoTime);
+            Teleport(Vector3.Lerp(iaidoFrom, iaidoTo, 1f - (1f - k) * (1f - k)));
+            if (k >= 1f)
+            {
+                iaidoPending = false;
+                DoIaidoHit();
+            }
+            return;
+        }
 
         // --- Direccion de movimiento relativa a la camara ---
         Vector2 input = blocked ? Vector2.zero : CartoInput.Move;
@@ -188,6 +218,8 @@ public class CartoPlayer : MonoBehaviour
                 Play("Roll");
             }
 
+            if (CartoInput.SkillDown && !rolling && now >= skillReadyAt) UseSkill();
+
             bool free = !rolling && now >= busyUntil;
             if (free && now <= meleeBuffer)
             {
@@ -210,6 +242,11 @@ public class CartoPlayer : MonoBehaviour
         {
             fireAt = -1f;
             DoShoot();
+        }
+        if (fanAt > 0f && now >= fanAt)
+        {
+            fanAt = -1f;
+            DoFan();
         }
 
         // --- Movimiento: se puede caminar y correr tambien mientras se ataca ---
@@ -304,6 +341,7 @@ public class CartoPlayer : MonoBehaviour
         CartoGameState.health = health.current;
         busyUntil = 0f;
         rollUntil = 0f;
+        iaidoPending = false;
         CancelAttack();
         ResetUpperBody();
         if (breath != null) breath.enabled = true;
@@ -358,6 +396,7 @@ public class CartoPlayer : MonoBehaviour
     {
         hitAt = -1f;
         fireAt = -1f;
+        fanAt = -1f;
         meleeBuffer = -1f;
         shootBuffer = -1f;
         aimUntil = 0f;
@@ -511,6 +550,193 @@ public class CartoPlayer : MonoBehaviour
         CartoProjectile.Spawn(origin, dir, def.projectileSpeed, dmg, 0,
             def.projectileUsesModel ? def.prefab : null, def.projectileEuler,
             def.projectileUsesModel ? new Color(0.8f, 0.9f, 1f) : new Color(1f, 0.75f, 0.2f));
+    }
+
+    // ------------------------------------------------------------------ habilidad especial (F)
+
+    /// <summary>La habilidad que toca ahora: la decide la era del arma cuerpo a cuerpo equipada.</summary>
+    public Skill CurrentSkill
+    {
+        get
+        {
+            CartoWeaponLibrary lib = CartoWeaponLibrary.Instance;
+            CartoWeaponDef def = lib != null ? lib.Get(CartoGameState.meleeId) : null;
+            if (def != null && def.era == "Pirata") return Skill.Fan;
+            if (def != null && def.era == "Samurai") return Skill.Iaido;
+            return Skill.Vision;
+        }
+    }
+
+    public static string SkillTitle(Skill s)
+    {
+        switch (s)
+        {
+            case Skill.Fan: return "Ráfaga en abanico";
+            case Skill.Iaido: return "Corte iaido";
+        }
+        return "Visión temporal";
+    }
+
+    public static Color SkillColor(Skill s)
+    {
+        switch (s)
+        {
+            case Skill.Fan: return CartoArt.Gold;
+            case Skill.Iaido: return CartoArt.Magenta;
+        }
+        return CartoArt.Cyan;
+    }
+
+    /// <summary>Segundos que faltan para volver a usar la habilidad, y cuanto dura su recarga.</summary>
+    public float SkillLeft { get { return Mathf.Max(0f, skillReadyAt - Time.time); } }
+    public float SkillTotal { get { return skillTotal; } }
+
+    /// <summary>Hacia donde va la habilidad: al enemigo mas cercano delante de la camara, o al frente.</summary>
+    Vector3 SkillAim(float maxDist, float maxAngle, out CartoEnemy target)
+    {
+        Vector3 camF = CameraForward();
+        target = NearestEnemy(maxDist, maxAngle, camF);
+        if (target == null) return camF;
+        Vector3 to = target.transform.position - transform.position;
+        to.y = 0f;
+        return to.sqrMagnitude > 0.01f ? to.normalized : camF;
+    }
+
+    /// <summary>Rafaga de particulas del color de la habilidad en un punto del mundo.</summary>
+    void Burst(Color color, int count, Vector3 pos)
+    {
+        if (skillFx == null) return;
+        ParticleSystem.EmitParams p = new ParticleSystem.EmitParams();
+        p.position = pos;
+        p.startColor = color;
+        p.applyShapeToPosition = true;
+        skillFx.Emit(p, count);
+    }
+
+    void UseSkill()
+    {
+        CartoWeaponLibrary lib = CartoWeaponLibrary.Instance;
+        CartoWeaponDef melee = lib != null ? lib.Get(CartoGameState.meleeId) : null;
+        Skill skill = CurrentSkill;
+        Color color = SkillColor(skill);
+        float now = Time.time;
+        Vector3 chest = transform.position + Vector3.up * (Height * 0.6f);
+        CartoEnemy target;
+        CancelAttack();
+
+        switch (skill)
+        {
+            case Skill.Vision:
+                // Vision temporal: el cartografo ve el tiempo y lo frena para todos los demas.
+                CartoEnemy.SlowAll(0.4f, 4f);
+                PlayWeapon(melee, "Attack1H", 0.5f);
+                Burst(color, 46, chest);
+                CartoFeel.Shake(0.1f, 0.3f);
+                CartoHUD.Toast("Visión temporal: los enemigos van al 40 %", 2f);
+                busyUntil = now + 0.25f;
+                skillTotal = visionCooldown;
+                break;
+
+            case Skill.Fan:
+                // Rafaga en abanico: cinco proyectiles de polvora; salen un instante despues del gesto.
+                FaceDirection(SkillAim(30f, 40f, out target));
+                aimTarget = target;
+                aimDir = transform.forward;
+                aimUntil = now + 0.3f;
+                PlayWeapon(lib != null ? lib.Get("pistola") : null, "Shoot", 0.5f);
+                fanAt = now + 0.14f;
+                busyUntil = now + 0.4f;
+                skillTotal = fanCooldown;
+                break;
+
+            case Skill.Iaido:
+                // Corte iaido: embestida en linea recta hasta el primer obstaculo.
+                Vector3 dir = SkillAim(11f, 55f, out target);
+                FaceDirection(dir);
+                float reach = iaidoRange;
+                RaycastHit[] hits = Physics.SphereCastAll(transform.position + Vector3.up * 0.9f, 0.3f, dir, reach, ~0, QueryTriggerInteraction.Ignore);
+                for (int i = 0; i < hits.Length; i++)
+                {
+                    Collider c = hits[i].collider;
+                    if (c == null || c is CharacterController) continue;   // a los personajes los atraviesa
+                    if (hits[i].distance <= 0.001f) continue;
+                    if (hits[i].distance < reach) reach = hits[i].distance;
+                }
+                reach = Mathf.Max(0f, reach - 0.45f);
+                // Que no termine metido dentro de un enemigo.
+                for (int n = 0; n < 10 && InsideEnemy(transform.position + dir * reach); n++) reach = Mathf.Max(0f, reach - 0.5f);
+                iaidoFrom = transform.position;
+                iaidoTo = transform.position + dir * reach;
+                iaidoUntil = now + IaidoTime;
+                iaidoPending = true;
+                busyUntil = now + IaidoTime + 0.3f;
+                skillTotal = iaidoCooldown;
+                break;
+        }
+        skillReadyAt = now + skillTotal;
+        CartoHUD.SkillFlash(color);
+    }
+
+    bool InsideEnemy(Vector3 pos)
+    {
+        for (int i = 0; i < CartoEnemy.All.Count; i++)
+        {
+            CartoEnemy e = CartoEnemy.All[i];
+            if (e == null || e.IsDead) continue;
+            Vector3 to = e.transform.position - pos;
+            to.y = 0f;
+            float min = e.Radius + 0.6f;
+            if (to.sqrMagnitude < min * min) return true;
+        }
+        return false;
+    }
+
+    void DoFan()
+    {
+        Vector3 origin = transform.position + Vector3.up * (Height * 0.72f) + transform.forward * 0.6f;
+        Vector3 dir = transform.forward;
+        CartoEnemy target = NearestEnemy(30f, 45f, transform.forward);
+        if (target != null) dir = (target.AimPoint - origin).normalized;
+        float dmg = Mathf.Round(16f * CartoGameState.DamageMultiplier(CartoGameState.meleeId));
+        for (int i = -2; i <= 2; i++)
+        {
+            Vector3 d = Quaternion.Euler(0f, i * 11f, 0f) * dir;
+            CartoProjectile.Spawn(origin, d, 40f, dmg, 0, null, Vector3.zero, CartoArt.Gold);
+        }
+        Burst(CartoArt.Gold, 26, origin + transform.forward * 0.3f);
+        CartoFeel.Shake(0.14f, 0.22f);
+    }
+
+    /// <summary>Fin de la embestida: el tajo alcanza a todo lo que quedo en la linea recorrida.</summary>
+    void DoIaidoHit()
+    {
+        CartoWeaponLibrary lib = CartoWeaponLibrary.Instance;
+        CartoWeaponDef def = lib != null ? lib.Get(CartoGameState.meleeId) : null;
+        float dmg = Mathf.Round((def != null ? def.damage : 30f) * 1.6f * CartoGameState.DamageMultiplier(CartoGameState.meleeId));
+        Vector3 a = iaidoFrom, b = transform.position;
+        Vector3 ab = b - a;
+        ab.y = 0f;
+        float len2 = ab.sqrMagnitude;
+
+        CartoEnemy[] enemies = CartoEnemy.All.ToArray();
+        for (int i = 0; i < enemies.Length; i++)
+        {
+            CartoEnemy e = enemies[i];
+            if (e == null || e.IsDead) continue;
+            Vector3 ap = e.transform.position - a;
+            if (Mathf.Abs(ap.y) > 3f) continue;
+            ap.y = 0f;
+            float t = len2 > 0.0001f ? Mathf.Clamp01(Vector3.Dot(ap, ab) / len2) : 0f;
+            float reach = 1.7f + e.Radius;
+            if ((ap - ab * t).sqrMagnitude > reach * reach) continue;
+            e.health.TakeDamage(dmg, a);
+        }
+
+        for (int i = 0; i <= 8; i++)
+            Burst(CartoArt.Magenta, 5, Vector3.Lerp(a, b, i / 8f) + Vector3.up * 1f);
+        PlayWeapon(def, "Attack2H", 0.55f);
+        CartoFeel.Shake(0.18f, 0.3f);
+        busyUntil = Time.time + 0.3f;
     }
 
     // ------------------------------------------------------------------ dano

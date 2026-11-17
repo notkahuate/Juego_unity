@@ -341,6 +341,50 @@ public static class CartoGameBuilder
         return ps;
     }
 
+    /// <summary>
+    /// Particulas para rafagas (no emite sola): el codigo le pide un punado de chispas en un punto y
+    /// con un color (CartoPlayer.Burst), y salen despedidas en todas direcciones.
+    /// </summary>
+    static ParticleSystem BurstParticles(Transform parent, string name)
+    {
+        GameObject go = new GameObject(name);
+        go.transform.SetParent(parent, false);
+        ParticleSystem ps = go.AddComponent<ParticleSystem>();
+
+        ParticleSystem.MainModule main = ps.main;
+        main.loop = true;
+        main.playOnAwake = true;
+        main.startLifetime = new ParticleSystem.MinMaxCurve(0.35f, 0.8f);
+        main.startSpeed = new ParticleSystem.MinMaxCurve(2.5f, 7.5f);
+        main.startSize = new ParticleSystem.MinMaxCurve(0.12f, 0.32f);
+        main.startColor = Color.white;
+        main.simulationSpace = ParticleSystemSimulationSpace.World;
+        main.gravityModifier = 0f;
+        main.maxParticles = 400;
+
+        ParticleSystem.EmissionModule emission = ps.emission;
+        emission.rateOverTime = 0f;
+
+        ParticleSystem.ShapeModule shape = ps.shape;
+        shape.shapeType = ParticleSystemShapeType.Sphere;
+        shape.radius = 0.35f;
+
+        ParticleSystem.ColorOverLifetimeModule col = ps.colorOverLifetime;
+        col.enabled = true;
+        Gradient g = new Gradient();
+        g.SetKeys(
+            new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+            new[] { new GradientAlphaKey(1f, 0f), new GradientAlphaKey(0.8f, 0.5f), new GradientAlphaKey(0f, 1f) });
+        col.color = new ParticleSystem.MinMaxGradient(g);
+
+        ParticleSystemRenderer r = go.GetComponent<ParticleSystemRenderer>();
+        r.sharedMaterial = ParticleMat();
+        r.renderMode = ParticleSystemRenderMode.Billboard;
+        r.shadowCastingMode = ShadowCastingMode.Off;
+        r.receiveShadows = false;
+        return ps;
+    }
+
     // =====================================================================
     //  Animator
     // =====================================================================
@@ -759,6 +803,7 @@ public static class CartoGameBuilder
         CartoPlayer player = root.AddComponent<CartoPlayer>();
         CartoMount.ApplyOutfit(root.transform, player.outfitPieces);   // armadura de placas, sin casco
         root.AddComponent<CartoBreath>();
+        player.skillFx = BurstParticles(root.transform, "DestelloHabilidad");
 
         // Aura del cartografo: motas de luz cian y oro que suben desde sus pies y un resplandor frio.
         GameObject aura = new GameObject("Aura");
