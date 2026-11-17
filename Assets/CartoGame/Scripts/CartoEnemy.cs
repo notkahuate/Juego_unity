@@ -406,6 +406,7 @@ public class CartoEnemy : MonoBehaviour
             Vector3 aim = player.transform.position + Vector3.up * (player.Height * 0.55f);
             Vector3 d = (aim - origin).normalized;
             CartoProjectile.Spawn(origin, d, projectileSpeed, damage, 1, projectilePrefab, projectileEuler, projectileColor);
+            CartoAudio.Play(CartoAudio.Sfx.Shoot, 0.45f, orbits ? 1.5f : 0.9f);
         }
         else
         {
@@ -422,6 +423,7 @@ public class CartoEnemy : MonoBehaviour
         CartoHUD.AddFloater(transform.position + Vector3.up * (BarHeight + 0.2f), Mathf.RoundToInt(amount).ToString(),
             health.IsDead ? CartoArt.Gold : CartoArt.Parchment, health.IsDead ? 1.35f : 1.1f);
         StartFlash();
+        CartoAudio.Play(CartoAudio.Sfx.Hit, heavy ? 1f : 0.85f, heavy ? 0.8f : Random.Range(0.95f, 1.15f));
         CartoFeel.HitStop(heavy ? 0.08f : 0.06f);
         CartoFeel.Shake(heavy ? 0.11f : 0.07f, heavy ? 0.2f : 0.14f);
 
@@ -470,6 +472,7 @@ public class CartoEnemy : MonoBehaviour
         glitchUntil = Time.time + 0.9f;
         nextGlitch = glitchUntil + 1f;
         CartoHUD.PhaseWarning(health.displayName, phaseMessage, phaseColor);
+        CartoAudio.Play(CartoAudio.Sfx.Phase);
         CartoFeel.Shake(0.25f, 0.6f);
     }
 
@@ -509,6 +512,7 @@ public class CartoEnemy : MonoBehaviour
             summoned.Add(e);
         }
         CartoHUD.Toast("¡" + health.displayName + " invoca drones de otra época!", 2.5f);
+        CartoAudio.Play(CartoAudio.Sfx.Skill, 0.7f, 0.6f);
         CartoFeel.Shake(0.12f, 0.3f);
     }
 
@@ -545,6 +549,7 @@ public class CartoEnemy : MonoBehaviour
             Vector3 dir = Quaternion.Euler(0f, (i - (volley - 1) * 0.5f) * 12f, 0f) * d;
             CartoProjectile.Spawn(origin, dir, 21f, dmg, 1, null, Vector3.zero, phaseColor);
         }
+        CartoAudio.Play(CartoAudio.Sfx.Shoot, 0.8f, 0.7f);
         CartoFeel.Shake(0.08f, 0.15f);
     }
 

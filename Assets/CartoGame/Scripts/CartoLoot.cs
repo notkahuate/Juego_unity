@@ -75,10 +75,12 @@ public class CartoLoot : MonoBehaviour
         if (kind == Kind.Gold)
         {
             CartoGameState.gold += value;
+            CartoAudio.Play(CartoAudio.Sfx.Coin, 0.7f, Random.Range(0.95f, 1.1f));
         }
         else
         {
             player.health.Heal(value);
+            CartoAudio.Play(CartoAudio.Sfx.Coin, 0.8f, 0.6f);
             CartoHUD.AddFloater(player.transform.position + Vector3.up * 2f, "+" + value + " vida", CartoArt.Parchment, 0.9f);
         }
         Destroy(gameObject);

@@ -29,6 +29,7 @@ public class CartoWeaponPickup : MonoBehaviour
             CartoHUD.Toast("¡Nueva arma: " + def.displayName + "!  " + how, 4f);
         }
         player.RefreshWeapons();
+        CartoAudio.Play(CartoAudio.Sfx.Crystal, 0.7f, 1.25f);
         Destroy(gameObject);
     }
 }

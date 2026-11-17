@@ -233,7 +233,11 @@ public class CartoHUD : MonoBehaviour
                 if (CartoInput.PauseDown)
                 {
                     if (CartoShop.IsOpen) CartoShop.Close();
-                    else ShowOverlay(Overlay.Pause);
+                    else
+                    {
+                        ShowOverlay(Overlay.Pause);
+                        CartoAudio.Play(CartoAudio.Sfx.UiClick);
+                    }
                 }
                 else if (CartoInput.FreeCursorDown)
                 {
@@ -348,9 +352,16 @@ public class CartoHUD : MonoBehaviour
 
     // ------------------------------------------------------------ menus (principal y pausa)
 
-    static readonly string[] MenuNewItems = { "Jugar", "Controles", "Salir" };
-    static readonly string[] MenuResumeItems = { "Continuar", "Nueva partida", "Controles", "Salir" };
-    static readonly string[] PauseItems = { "Continuar", "Controles", "Volver al menú", "Salir del juego" };
+    static readonly string[] MenuNewItems = { "Jugar", "Controles", "Volumen", "Salir" };
+    static readonly string[] MenuResumeItems = { "Continuar", "Nueva partida", "Controles", "Volumen", "Salir" };
+    static readonly string[] PauseItems = { "Continuar", "Controles", "Volumen", "Volver al menú", "Salir del juego" };
+
+    /// <summary>Texto del boton: el de volumen muestra su valor y como cambiarlo.</summary>
+    static string ItemLabel(string item)
+    {
+        if (item == "Volumen") return "Volumen   " + Mathf.RoundToInt(CartoAudio.Volume * 100f) + " %   (A / D)";
+        return item;
+    }
     static readonly string[] BackItems = { "Volver" };
 
     /// <summary>Botones de la pantalla abierta. Con una partida en curso el menu principal ofrece continuarla.</summary>
@@ -389,7 +400,7 @@ public class CartoHUD : MonoBehaviour
         if (overlay == Overlay.Pause)
         {
             Rect col = PauseColumn(W, H, s);
-            return new Rect(col.x + 26f * s, col.y + 66f * s + i * 82f * s, col.width - 52f * s, 64f * s);
+            return new Rect(col.x + 26f * s, col.y + 60f * s + i * 71f * s, col.width - 52f * s, 58f * s);
         }
         float bw = 470f * s, bh = 66f * s;
         return new Rect(W * 0.5f - bw * 0.5f, H * 0.47f + i * (bh + 16f * s), bw, bh);
@@ -401,6 +412,7 @@ public class CartoHUD : MonoBehaviour
     int UpdateButtons(int count)
     {
         if (selected >= count) selected = 0;
+        int before = selected;
         if (CartoInput.MenuUpDown) selected = (selected + count - 1) % count;
         if (CartoInput.MenuDownDown) selected = (selected + 1) % count;
 
@@ -413,10 +425,13 @@ public class CartoHUD : MonoBehaviour
         // El raton solo elige al moverse o hacer clic, para no pelear con el teclado.
         if (hover >= 0 && (click || (mouse - lastMouse).sqrMagnitude > 1f)) selected = hover;
         lastMouse = mouse;
+        if (selected != before) CartoAudio.Play(CartoAudio.Sfx.UiMove);
 
-        if (click && hover >= 0) return hover;
-        if (CartoInput.ConfirmDown) return selected;
-        return -1;
+        int pressed = -1;
+        if (click && hover >= 0) pressed = hover;
+        else if (CartoInput.ConfirmDown) pressed = selected;
+        if (pressed >= 0) CartoAudio.Play(CartoAudio.Sfx.UiClick);
+        return pressed;
     }
 
     void UpdateMenu()
@@ -432,10 +447,19 @@ public class CartoHUD : MonoBehaviour
             }
             return;
         }
+        // Volumen: con el boton elegido, A / D (o las flechas) lo bajan y lo suben.
+        if (items[selected] == "Volumen" && (CartoInput.MenuLeftDown || CartoInput.MenuRightDown))
+        {
+            CartoAudio.StepVolume(CartoInput.MenuRightDown ? 1 : -1, false);
+            CartoAudio.Play(CartoAudio.Sfx.Coin, 0.8f);
+        }
         if (hit < 0) return;
 
         switch (items[hit])
         {
+            case "Volumen":
+                CartoAudio.StepVolume(1, true);   // Enter o clic: sube un paso; del 100 % vuelve a 0
+                break;
             case "Jugar":
             case "Continuar":
                 if (overlay == Overlay.Pause)
@@ -1086,7 +1110,7 @@ public class CartoHUD : MonoBehaviour
     void DrawButtons()
     {
         string[] items = CurrentItems();
-        for (int i = 0; i < items.Length; i++) DrawButton(ButtonRect(i, items.Length), items[i], i == selected);
+        for (int i = 0; i < items.Length; i++) DrawButton(ButtonRect(i, items.Length), ItemLabel(items[i]), i == selected);
     }
 
     /// <summary>Boton de menu: claro sobre el panel; el elegido (teclado o raton encima) crece y pasa a oro.</summary>

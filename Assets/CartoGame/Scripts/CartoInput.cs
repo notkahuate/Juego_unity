@@ -53,6 +53,8 @@ public static class CartoInput
     public static bool NewGameDown { get { return K != null && K.nKey.wasPressedThisFrame; } }
     public static bool FreeCursorDown { get { return K != null && (K.leftCtrlKey.wasPressedThisFrame || K.rightCtrlKey.wasPressedThisFrame); } }
     public static bool SkillDown { get { return K != null && K.fKey.wasPressedThisFrame; } }
+    public static bool MenuLeftDown { get { return K != null && (K.aKey.wasPressedThisFrame || K.leftArrowKey.wasPressedThisFrame); } }
+    public static bool MenuRightDown { get { return K != null && (K.dKey.wasPressedThisFrame || K.rightArrowKey.wasPressedThisFrame); } }
     public static bool FullscreenDown { get { return K != null && K.f11Key.wasPressedThisFrame; } }
     public static bool MenuUpDown { get { return K != null && (K.wKey.wasPressedThisFrame || K.upArrowKey.wasPressedThisFrame); } }
     public static bool MenuDownDown { get { return K != null && (K.sKey.wasPressedThisFrame || K.downArrowKey.wasPressedThisFrame); } }
@@ -108,6 +110,8 @@ public static class CartoInput
     public static bool NewGameDown { get { return Input.GetKeyDown(KeyCode.N); } }
     public static bool FreeCursorDown { get { return Input.GetKeyDown(KeyCode.LeftControl) || Input.GetKeyDown(KeyCode.RightControl); } }
     public static bool SkillDown { get { return Input.GetKeyDown(KeyCode.F); } }
+    public static bool MenuLeftDown { get { return Input.GetKeyDown(KeyCode.A) || Input.GetKeyDown(KeyCode.LeftArrow); } }
+    public static bool MenuRightDown { get { return Input.GetKeyDown(KeyCode.D) || Input.GetKeyDown(KeyCode.RightArrow); } }
     public static bool FullscreenDown { get { return Input.GetKeyDown(KeyCode.F11); } }
     public static bool MenuUpDown { get { return Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.UpArrow); } }
     public static bool MenuDownDown { get { return Input.GetKeyDown(KeyCode.S) || Input.GetKeyDown(KeyCode.DownArrow); } }

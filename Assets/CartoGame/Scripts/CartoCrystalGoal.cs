@@ -58,6 +58,7 @@ public class CartoCrystalGoal : MonoBehaviour
             taken = true;
             CartoGameState.crystals[era] = true;
             if (crystalVisual != null) crystalVisual.SetActive(false);
+            CartoAudio.Play(CartoAudio.Sfx.Crystal);
             CartoHUD.Toast("¡Cristal de la " + eraName + " recuperado!  (" + CartoGameState.CrystalCount + "/2)", 5f);
             leaveAt = Time.time + 2.2f;
         }

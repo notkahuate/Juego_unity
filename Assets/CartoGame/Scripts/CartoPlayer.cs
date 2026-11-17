@@ -547,6 +547,7 @@ public class CartoPlayer : MonoBehaviour
             dir = (aim - origin).normalized;
         }
         float dmg = Mathf.Round(def.damage * CartoGameState.DamageMultiplier(def.id));
+        CartoAudio.Play(CartoAudio.Sfx.Shoot, 0.8f, def.projectileUsesModel ? 1.6f : 1f);
         CartoProjectile.Spawn(origin, dir, def.projectileSpeed, dmg, 0,
             def.projectileUsesModel ? def.prefab : null, def.projectileEuler,
             def.projectileUsesModel ? new Color(0.8f, 0.9f, 1f) : new Color(1f, 0.75f, 0.2f));
@@ -675,6 +676,7 @@ public class CartoPlayer : MonoBehaviour
         }
         skillReadyAt = now + skillTotal;
         CartoHUD.SkillFlash(color);
+        CartoAudio.Play(CartoAudio.Sfx.Skill, 1f, skill == Skill.Vision ? 0.75f : (skill == Skill.Fan ? 1f : 1.3f));
     }
 
     bool InsideEnemy(Vector3 pos)
@@ -704,6 +706,7 @@ public class CartoPlayer : MonoBehaviour
             CartoProjectile.Spawn(origin, d, 40f, dmg, 0, null, Vector3.zero, CartoArt.Gold);
         }
         Burst(CartoArt.Gold, 26, origin + transform.forward * 0.3f);
+        CartoAudio.Play(CartoAudio.Sfx.Shoot, 1f, 0.8f);
         CartoFeel.Shake(0.14f, 0.22f);
     }
 
@@ -745,6 +748,7 @@ public class CartoPlayer : MonoBehaviour
     {
         CartoHUD.DamageFlash();
         CartoFeel.Shake(0.13f, 0.22f);
+        CartoAudio.Play(CartoAudio.Sfx.Hurt);
         CartoHUD.AddFloater(transform.position + Vector3.up * Height, "-" + Mathf.RoundToInt(amount), CartoArt.Crimson, 1.2f);
     }
 
