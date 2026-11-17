@@ -1741,6 +1741,18 @@ public static class CartoGameBuilder
 
         CartoEnemy boss = SpawnEnemy(enemies, "Captain_Male", "LowPolyPirate", "Capitán Marea Negra", new Vector3(0f, 0.05f, 40f),
             1.15f, 340f, 22f, 4.1f, 70, 90, 120, "Culass1", "Pirate Weapons", false, false, true);
+        // Fase 2 del capitan (a media vida): la grieta le trae drones y empieza a embestir.
+        CartoEnemy droneTemplate = SpawnDrone(enemies, "Dron invocado", new Vector3(0f, 0.05f, 52f), 32f, 7f, 3.6f, 2, 4, 6);
+        droneTemplate.gameObject.name = "PlantillaDron";
+        droneTemplate.gameObject.SetActive(false);
+        boss.phased = true;
+        boss.phaseColor = CartoArt.Cyan;
+        boss.phaseMessage = "La grieta responde a su llamada: invoca drones de otra época";
+        boss.summonTemplate = droneTemplate;
+        Fuse(boss, CartoArt.Cyan);
+        boss.typeColor = CartoArt.Gold;
+        boss.fused = false;                    // la grieta lo alcanza al cambiar de fase
+        boss.fusionFx.SetActive(false);
 
         // Punto de control antes del jefe (entre el segundo y el tercer grupo de piratas)
         Checkpoint(env, new Vector3(0f, 0f, 17f));
@@ -1883,6 +1895,15 @@ public static class CartoGameBuilder
         }
         CartoEnemy boss = SpawnEnemy(enemies, "Akudaikan_v2", sp, "Akudaikan, Señor de la Guerra", new Vector3(0f, 0.25f, 41f),
             1.3f, 520f, 28f, 4.2f, 110, 130, 200, "Kanabo", sw, true, false, true);
+        // Fase 2 de Akudaikan (a media vida): carga polvora pirata y dispara descargas en abanico.
+        boss.phased = true;
+        boss.phaseColor = CartoArt.Gold;
+        boss.phaseMessage = "Akudaikan carga pólvora pirata: cuidado con sus descargas";
+        boss.volley = 3;
+        Fuse(boss, CartoArt.Gold);
+        boss.typeColor = CartoArt.Magenta;
+        boss.fused = false;                    // la grieta lo alcanza al cambiar de fase
+        boss.fusionFx.SetActive(false);
 
         // Punto de control antes del jefe (entre el segundo torii y el ultimo)
         Checkpoint(env, new Vector3(0f, 0f, 16f));

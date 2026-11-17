@@ -45,6 +45,16 @@ public class CartoEnemy : MonoBehaviour
     public float dashTime = 0.32f;
     public float dashCooldown = 4f;
 
+    // --- Fases de jefe: a media vida cambia de ataque y gana un elemento de la otra era ---
+    public bool phased = false;
+    public Color phaseColor = new Color(0.302f, 0.902f, 1f);
+    [TextArea] public string phaseMessage = "";
+    public CartoEnemy summonTemplate;   // fase 2: invoca copias de esta plantilla (los drones del capitan)
+    public int summonCount = 2;
+    public float summonEvery = 13f;
+    public int volley = 0;              // fase 2: balas de polvora por descarga (el jefe samurai)
+    public float volleyEvery = 4f;
+
     [HideInInspector] public CartoHealth health;
 
     enum State { Idle, Chase, Windup, Recover, DashWind, Dash, Dead }
@@ -90,6 +100,17 @@ public class CartoEnemy : MonoBehaviour
     float nextFlip;
     float deathAt;
 
+    bool phase2;
+    bool volleyShot;               // el ataque que esta preparando es una descarga, no un golpe
+    float nextSummon;
+    float nextVolley;
+    float baseSpeed;
+    float baseRecover;
+    bool baseDasher;
+    bool baseFused;
+    Color baseColor;
+    readonly List<CartoEnemy> summoned = new List<CartoEnemy>();
+
     // Grieta temporal de los fusionados: de vez en cuando el modelo tiembla y se tine de su color.
     Vector3 modelPos;
     Vector3 modelScale = Vector3.one;
@@ -114,6 +135,8 @@ public class CartoEnemy : MonoBehaviour
     public float BarHeight { get { return barHeight > 0f ? barHeight : Height; } }
     /// <summary>Punto al que apuntan los disparos del cartografo.</summary>
     public Vector3 AimPoint { get { return transform.position + Vector3.up * (aimHeight > 0f ? aimHeight : Height * 0.6f); } }
+    /// <summary>El jefe ya ha pasado a su segunda fase.</summary>
+    public bool Phase2 { get { return phase2; } }
 
     void Awake()
     {
@@ -124,6 +147,11 @@ public class CartoEnemy : MonoBehaviour
         health.team = 1;
         homePos = transform.position;
         homeRot = transform.rotation;
+        baseSpeed = moveSpeed;
+        baseRecover = recover;
+        baseDasher = dasher;
+        baseFused = fused;
+        baseColor = typeColor;
         health.Damaged += OnDamaged;
         health.Died += OnDied;
     }
@@ -185,6 +213,7 @@ public class CartoEnemy : MonoBehaviour
             Vector3 tangent = new Vector3(dir.z, 0f, -dir.x) * orbitSign;
 
             if (!aggro && d < aggroRange) Alert();
+            if (phase2 && aggro && summonTemplate != null && clock >= nextSummon) Summon();
 
             if (clock >= staggerUntil)
             {
@@ -209,7 +238,8 @@ public class CartoEnemy : MonoBehaviour
                         }
                         else
                         {
-                            if (dasher && clock >= nextDash && d > 4.5f && d < 11f) BeginDash();
+                            if (phase2 && volley > 0 && clock >= nextVolley && d > 3.5f && d < 20f) BeginVolley();
+                            else if (dasher && clock >= nextDash && d > 4.5f && d < 11f) BeginDash();
                             else if (d > attackRange * 0.8f) move = dir * moveSpeed;
                             else if (clock >= nextAttack) BeginAttack();
                         }
@@ -220,7 +250,9 @@ public class CartoEnemy : MonoBehaviour
                         if (orbits) move = Orbit(dir, tangent, d) * 0.5f;   // el dron no se para a apuntar
                         if (clock >= timer)
                         {
-                            Strike(player, d, dir);
+                            if (volleyShot) FireVolley(player);
+                            else Strike(player, d, dir);
+                            volleyShot = false;
                             state = State.Recover;
                             timer = clock + recover;
                         }
@@ -338,6 +370,8 @@ public class CartoEnemy : MonoBehaviour
         animSpeed = 0f;
         nextAttack = clock + Random.Range(0.2f, 0.8f);
         nextDash = clock + Random.Range(0.5f, 2f);
+        volleyShot = false;
+        if (phase2) LeavePhase2();
         health.current = health.maxHealth;
         cc.enabled = false;
         transform.position = homePos;
@@ -349,6 +383,7 @@ public class CartoEnemy : MonoBehaviour
     void BeginAttack()
     {
         state = State.Windup;
+        volleyShot = false;
         timer = clock + windup;
         Play(ranged ? "Shoot" : (twoHandedAnim ? "Attack2H" : "Attack1H"));
     }
@@ -395,6 +430,7 @@ public class CartoEnemy : MonoBehaviour
         if (push.sqrMagnitude > 0.001f) knock = push.normalized * (health.isBoss ? 1.5f : 5.5f);
 
         if (health.IsDead) return;
+        if (phased && !phase2 && health.Percent <= 0.5f) EnterPhase2();
         if (!health.isBoss)
         {
             staggerUntil = clock + 0.3f;
@@ -407,6 +443,109 @@ public class CartoEnemy : MonoBehaviour
             }
             Play("Hit");
         }
+    }
+
+    // ------------------------------------------------------------------ fases de jefe
+
+    /// <summary>
+    /// Media vida: la grieta alcanza al jefe. Se vuelve mas rapido, empieza a parpadear con el color
+    /// de la otra era y gana su ataque: invocar drones (y embestir) o disparar descargas de polvora.
+    /// </summary>
+    void EnterPhase2()
+    {
+        phase2 = true;
+        typeColor = phaseColor;
+        fused = true;
+        if (fusionFx != null) fusionFx.SetActive(true);
+        moveSpeed = baseSpeed * 1.15f;
+        recover = baseRecover * 0.75f;
+        if (summonTemplate != null)
+        {
+            dasher = true;
+            nextSummon = clock + 1.2f;
+        }
+        nextDash = clock + 2.5f;
+        nextVolley = clock + 1.5f;
+        glitching = true;
+        glitchUntil = Time.time + 0.9f;
+        nextGlitch = glitchUntil + 1f;
+        CartoHUD.PhaseWarning(health.displayName, phaseMessage, phaseColor);
+        CartoFeel.Shake(0.25f, 0.6f);
+    }
+
+    /// <summary>Vuelve a la primera fase (al reaparecer el cartografo en el punto de control).</summary>
+    void LeavePhase2()
+    {
+        phase2 = false;
+        typeColor = baseColor;
+        fused = baseFused;
+        dasher = baseDasher;
+        moveSpeed = baseSpeed;
+        recover = baseRecover;
+        if (glitching)
+        {
+            glitching = false;
+            EndGlitch();
+        }
+        if (fusionFx != null) fusionFx.SetActive(baseFused);
+        DismissSummoned();
+    }
+
+    void Summon()
+    {
+        summoned.RemoveAll(s => s == null || s.IsDead);
+        nextSummon = clock + summonEvery;
+        if (summoned.Count > summonCount) return;   // ya hay bastantes en pie
+        for (int i = 0; i < summonCount; i++)
+        {
+            float side = i % 2 == 0 ? -1f : 1f;
+            Vector3 pos = transform.position + transform.right * side * (2.6f + i / 2) + transform.forward * 1.5f;
+            GameObject go = Instantiate(summonTemplate.gameObject, pos, transform.rotation, transform.parent);
+            go.name = "Enemigo_Invocado";
+            go.SetActive(true);
+            CartoEnemy e = go.GetComponent<CartoEnemy>();
+            if (e == null) continue;
+            e.Alert();
+            summoned.Add(e);
+        }
+        CartoHUD.Toast("¡" + health.displayName + " invoca drones de otra época!", 2.5f);
+        CartoFeel.Shake(0.12f, 0.3f);
+    }
+
+    /// <summary>Sin su amo (o al reiniciar la pelea) los invocados se desvanecen.</summary>
+    void DismissSummoned()
+    {
+        for (int i = 0; i < summoned.Count; i++)
+            if (summoned[i] != null) Destroy(summoned[i].gameObject);
+        summoned.Clear();
+    }
+
+    void BeginVolley()
+    {
+        state = State.Windup;
+        volleyShot = true;
+        timer = clock + 0.55f;
+        nextVolley = clock + volleyEvery;
+        Play("Shoot");
+        // La grieta parpadea mientras carga: es el aviso.
+        glitching = true;
+        glitchUntil = Time.time + 0.55f;
+        nextGlitch = glitchUntil + Random.Range(1.4f, 4.2f);
+    }
+
+    /// <summary>Descarga de polvora: varias balas en abanico hacia el cartografo.</summary>
+    void FireVolley(CartoPlayer player)
+    {
+        Vector3 origin = transform.position + Vector3.up * (Height * 0.7f) + transform.forward * 0.7f;
+        Vector3 aim = player.transform.position + Vector3.up * (player.Height * 0.55f);
+        Vector3 d = (aim - origin).normalized;
+        float dmg = Mathf.Round(damage * 0.55f);
+        for (int i = 0; i < volley; i++)
+        {
+            Vector3 dir = Quaternion.Euler(0f, (i - (volley - 1) * 0.5f) * 12f, 0f) * d;
+            CartoProjectile.Spawn(origin, dir, 21f, dmg, 1, null, Vector3.zero, phaseColor);
+        }
+        CartoFeel.Shake(0.08f, 0.15f);
     }
 
     // ------------------------------------------------------------------ grieta temporal
@@ -550,6 +689,7 @@ public class CartoEnemy : MonoBehaviour
         glitching = false;
         if (model != null) model.localPosition = modelPos;
         if (fusionFx != null) fusionFx.SetActive(false);
+        DismissSummoned();
 
         // Botin: oro, a veces un corazon, y experiencia.
         int gold = Random.Range(goldMin, goldMax + 1);

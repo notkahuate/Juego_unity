@@ -73,6 +73,11 @@ public class CartoHUD : MonoBehaviour
     static int selected;             // boton elegido en el menu abierto
     static Vector2 lastMouse;
     static int guardFrame = -10;     // fotograma en que se cerro un menu: ese clic no llega al juego
+    static string phaseTitle = "";   // aviso de cambio de fase de un jefe
+    static string phaseText = "";
+    static Color phaseColor;
+    static float phaseStart = -10f;
+    const float PhaseTime = 3.6f;
     static Color skillFlashColor;    // destello de pantalla al usar la habilidad especial
     static float skillFlashStart = -10f;
     static string edgeText = "";     // aviso de borde del mapa (CartoBounds)
@@ -145,6 +150,15 @@ public class CartoHUD : MonoBehaviour
         fadeStart = Time.unscaledTime;
     }
 
+    /// <summary>Aviso grande en pantalla: un jefe ha cambiado de fase.</summary>
+    public static void PhaseWarning(string who, string text, Color color)
+    {
+        phaseTitle = who != null ? who.ToUpper() : "";
+        phaseText = text != null ? text : "";
+        phaseColor = color;
+        phaseStart = Time.unscaledTime;
+    }
+
     /// <summary>Destello de toda la pantalla, del color de la habilidad especial que se acaba de usar.</summary>
     public static void SkillFlash(Color color)
     {
@@ -203,6 +217,7 @@ public class CartoHUD : MonoBehaviour
         CartoShop.IsOpen = false;
         cursorFree = false;
         edgeStart = -10f;
+        phaseStart = -10f;
         if (overlay == Overlay.Menu || overlay == Overlay.Pause || overlay == Overlay.Death || overlay == Overlay.Cinematic)
             overlay = Overlay.None;
     }
@@ -738,8 +753,12 @@ public class CartoHUD : MonoBehaviour
         if (bossShown != null && !bossShown.IsDead)
         {
             Rect br = new Rect(W * 0.5f - 380 * s, topY + 108 * s, 760 * s, 28 * s);
-            Label(new Rect(br.x, br.y - 40 * s, br.width, 38 * s), bossShown.health.displayName, 27, parchment, TextAnchor.MiddleCenter, false);
+            Label(new Rect(br.x, br.y - 40 * s, br.width, 38 * s),
+                bossShown.health.displayName + (bossShown.Phase2 ? "   ·   FASE 2" : ""), 27,
+                bossShown.Phase2 ? Color.Lerp(bossShown.phaseColor, parchment, 0.4f) : parchment, TextAnchor.MiddleCenter, false);
             Bar(br, bossMeter.shown, bossMeter.ghost, CartoArt.Magenta, CartoArt.A(CartoArt.Ink, 0.92f));
+            // Marca de media vida: ahi cambia de fase
+            if (bossShown.phased) DrawRect(new Rect(br.center.x - 1.5f * s, br.y - 4 * s, 3f * s, br.height + 8 * s), CartoArt.A(parchment, 0.85f));
             IconAt(br.x - 22 * s, br.center.y, 34 * s, iconDiamond, CartoArt.Magenta);
             IconAt(br.xMax + 22 * s, br.center.y, 34 * s, iconDiamond, CartoArt.Magenta);
         }
@@ -848,6 +867,22 @@ public class CartoHUD : MonoBehaviour
             DrawRect(er, CartoArt.A(CartoArt.Ink, 0.8f * a));
             DrawRect(new Rect(er.x, er.yMax - 4f * s, er.width, 4f * s), CartoArt.A(CartoArt.Magenta, a));
             Label(er, edgeText, 25, CartoArt.A(CartoArt.Parchment, a), TextAnchor.MiddleCenter, false);
+        }
+
+        // Cambio de fase de un jefe: franja que cruza la pantalla
+        float pt = Time.unscaledTime - phaseStart;
+        if (pt >= 0f && pt < PhaseTime && overlay == Overlay.None)
+        {
+            float a = Mathf.Clamp01(pt / 0.15f) * Mathf.Clamp01((PhaseTime - pt) / 0.5f);
+            float bh = 168f * s * (0.55f + 0.45f * Mathf.Clamp01(pt / 0.2f));
+            Rect band = new Rect(0, H * 0.4f - bh * 0.5f, W, bh);
+            float lineH = Mathf.Max(2f, 4f * s);
+            DrawRect(band, CartoArt.A(CartoArt.Ink, 0.86f * a));
+            DrawRect(new Rect(0, band.y, W, lineH), CartoArt.A(phaseColor, a));
+            DrawRect(new Rect(0, band.yMax - lineH, W, lineH), CartoArt.A(phaseColor, a));
+            Label(new Rect(0, H * 0.4f - 74f * s, W, 28f * s), "FASE 2", 21, CartoArt.A(phaseColor, a), TextAnchor.MiddleCenter, false);
+            Label(new Rect(0, H * 0.4f - 46f * s, W, 62f * s), phaseTitle, 46, CartoArt.A(CartoArt.Parchment, a), TextAnchor.MiddleCenter, false);
+            Label(new Rect(0, H * 0.4f + 22f * s, W, 40f * s), phaseText, 24, CartoArt.A(phaseColor, a), TextAnchor.MiddleCenter, false);
         }
 
         if (CartoShop.IsOpen && overlay == Overlay.None) DrawShop(W, H);
