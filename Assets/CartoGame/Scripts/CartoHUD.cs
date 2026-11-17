@@ -359,7 +359,7 @@ public class CartoHUD : MonoBehaviour
     /// <summary>Texto del boton: el de volumen muestra su valor y como cambiarlo.</summary>
     static string ItemLabel(string item)
     {
-        if (item == "Volumen") return "Volumen   " + Mathf.RoundToInt(CartoAudio.Volume * 100f) + " %   (A / D)";
+        if (item == "Volumen") return "Volumen  " + Mathf.RoundToInt(CartoAudio.Volume * 100f) + " %  (A/D)";
         return item;
     }
     static readonly string[] BackItems = { "Volver" };
