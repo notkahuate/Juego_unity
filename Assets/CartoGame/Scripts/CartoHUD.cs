@@ -966,7 +966,53 @@ public class CartoHUD : MonoBehaviour
                 DrawRect(new Rect(W * 0.5f - lw * 0.5f, ty + 118f * s, lw, Mathf.Max(2f, 3f * s)), CartoArt.A(Gold, ta));
             }
         }
+        DrawCredits(W, H, c);
         Label(new Rect(W - 340 * s, H - 48 * s, 320 * s, 36 * s), "ENTER  saltar", 20, CartoArt.A(CartoArt.Parchment, 0.6f * bars), TextAnchor.MiddleRight, false);
+    }
+
+    // ------------------------------------------------------------------ creditos
+
+    public const string GameVersion = "Versión 1.0";
+
+    static readonly string[] CreditNames =
+    {
+        "Jhoseph Santiago Méndez Mora",
+        "Juan Esteban Rojas Meléndez",
+        "Kevin Stiven Bueno Rojas",
+    };
+
+    /// <summary>
+    /// Creditos al empezar la cinematica inicial del Nexo: titulo, integrantes, grupo y version.
+    /// Aparecen con un fundido durante los primeros segundos y no bloquean el salto con Enter.
+    /// </summary>
+    void DrawCredits(float W, float H, CartoCinematic c)
+    {
+        if (c == null || CartoGame.Instance == null || CartoGame.Instance.zone != CartoGame.Zone.Hub) return;
+        const float CreditsTime = 7.5f;
+        float e = c.Elapsed;
+        if (e >= CreditsTime) return;
+        float a = Mathf.Clamp01(e / 0.8f) * Mathf.Clamp01((CreditsTime - e) / 0.9f);
+        if (a <= 0f) return;
+
+        float s = scale;
+        float pw = Mathf.Min(900f * s, W - 80f * s), ph = 330f * s;
+        Rect panel = new Rect(W * 0.5f - pw * 0.5f, H * 0.5f - ph * 0.62f, pw, ph);
+        DrawRect(panel, CartoArt.A(CartoArt.Ink, 0.82f * a));
+        DrawRect(new Rect(panel.x, panel.y, panel.width, Mathf.Max(2f, 3f * s)), CartoArt.A(Gold, a));
+        DrawRect(new Rect(panel.x, panel.yMax - Mathf.Max(2f, 3f * s), panel.width, Mathf.Max(2f, 3f * s)), CartoArt.A(Gold, a));
+
+        float y = panel.y + 22f * s;
+        Label(new Rect(panel.x, y, pw, 56f * s), "EL CARTÓGRAFO DEL TIEMPO", 44, CartoArt.A(Cyan, a), TextAnchor.MiddleCenter, false);
+        y += 66f * s;
+        Label(new Rect(panel.x, y, pw, 30f * s), "Un videojuego de", 20, CartoArt.A(CartoArt.Parchment, 0.75f * a), TextAnchor.MiddleCenter, false);
+        y += 34f * s;
+        for (int i = 0; i < CreditNames.Length; i++)
+        {
+            Label(new Rect(panel.x, y, pw, 34f * s), CreditNames[i], 27, CartoArt.A(CartoArt.Parchment, a), TextAnchor.MiddleCenter, false);
+            y += 36f * s;
+        }
+        y += 10f * s;
+        Label(new Rect(panel.x, y, pw, 32f * s), "Grupo E191   ·   " + GameVersion, 24, CartoArt.A(Gold, a), TextAnchor.MiddleCenter, false);
     }
 
     /// <summary>Texto que, con glitch, se desdobla en cian y magenta a los lados.</summary>

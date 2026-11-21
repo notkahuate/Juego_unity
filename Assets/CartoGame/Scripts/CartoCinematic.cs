@@ -58,6 +58,9 @@ public class CartoCinematic : MonoBehaviour
 
     public bool HasShots { get { return shots != null && shots.Length > 0; } }
 
+    /// <summary>Segundos desde que empezo la cinematica (para los creditos del inicio).</summary>
+    public float Elapsed { get { return elapsed; } }
+
     CartoShot Current { get { return shots[Mathf.Clamp(index, 0, shots.Length - 1)]; } }
 
     public string Caption { get { return HasShots && Current.text != null ? Current.text : ""; } }
